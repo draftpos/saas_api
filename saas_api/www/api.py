@@ -194,3 +194,80 @@ def create_supplier():
         frappe.log_error(title="Supplier API Error", message=frappe.get_traceback())
         frappe.local.response["http_status_code"] = 500
         return {"status": "error", "message": str(e)}
+
+def generate_item_group_code():
+    """Generate a unique item group code: IG-XXXXX-### style"""
+    prefix = "HA-"
+
+    # Get last item group created
+    last_group = frappe.db.sql("""
+        SELECT item_group_name FROM `tabItem Group`
+        WHERE item_group_name LIKE %s
+        ORDER BY creation DESC LIMIT 1
+    """, (f"{prefix}%-%%",))
+
+    if last_group:
+        last_code = last_group[0][0]
+        try:
+            last_num = int(last_code.split("-")[-1])
+        except:
+            last_num = 0
+        next_num = last_num + 1
+    else:
+        next_num = 1
+
+    # Generate random 5-letter prefix
+    random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
+    new_code = f"{prefix}{random_letters}-{next_num:03d}"
+
+    # Ensure uniqueness
+    while frappe.db.exists("Item Group", {"item_group_name": new_code}):
+        next_num += 1
+        random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
+        new_code = f"{prefix}{random_letters}-{next_num:03d}"
+
+    return new_code
+
+
+@frappe.whitelist(allow_guest=True)
+def create_item_group():
+    """POST: Create Item Group with auto-generated _item_group_name"""
+    try:
+        data = json.loads(frappe.request.data or "{}")
+        item_group_name = data.get("item_group_name")
+        group_name_for_item=data.get("group_name_for_item")
+        parent_item_group = data.get("parent_item_group", "All Item Groups")
+
+        if not group_name_for_item:
+            frappe.local.response["http_status_code"] = 400
+            return {
+                "status": "error",
+                "message": "Missing required field: group_name_for_item"
+            }
+
+        # Auto-generate code
+        item_group_name = generate_item_group_code()
+
+        # Create Item Group
+        group = frappe.get_doc({
+            "doctype": "Item Group",
+            "item_group_name": item_group_name,
+            "group_name_for_item": group_name_for_item,
+            "parent_item_group": parent_item_group
+        })
+        group.flags.ignore_permissions = True
+        group.insert()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 200
+        return {
+            "status": "success",
+            "message": f"Item Group '{group_name_for_item}' created successfully.",
+            "group_name_for_item": group_name_for_item,
+            "res":group
+        }
+
+    except Exception as e:
+        frappe.log_error(title="Item Group API Error", message=frappe.get_traceback())
+        frappe.local.response["http_status_code"] = 500
+        return {"status": "error", "message": str(e)}
