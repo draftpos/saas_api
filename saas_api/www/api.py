@@ -34,6 +34,41 @@ def generate_item_code():
         new_code = f"{prefix}{random_letters}-{next_num:03d}"
 
     return new_code
+def generate_supplier_code():
+    """Generate a unique supplier code: HS-XXXXX-### style with sequential last 3 digits"""
+    prefix = "HS-"
+
+    # Get the last supplier created
+    last_supplier = frappe.db.sql("""
+        SELECT supplier_name FROM `tabSupplier`
+        WHERE supplier_name LIKE %s
+        ORDER BY creation DESC LIMIT 1
+    """, (f"{prefix}%-%%",))
+    print(f"---------------------{last_supplier}")
+
+    if last_supplier:
+        last_code = last_supplier[0][0]
+        try:
+            last_num = int(last_code.split("-")[-1])
+        except:
+            last_num = 0
+        next_num = last_num + 1
+    else:
+        next_num = 1
+
+    # Generate new random 5-letter prefix
+    random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
+    new_code = f"{prefix}{random_letters}-{next_num:03d}"
+
+    # Ensure uniqueness
+    while frappe.db.exists("Supplier", {"supplier_code": new_code}):
+        next_num += 1
+        random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
+        new_code = f"{prefix}{random_letters}-{next_num:03d}"
+
+    return new_code
+
+
 
 @frappe.whitelist(allow_guest=True)
 def create_item():
@@ -102,5 +137,60 @@ def create_item():
 
     except Exception as e:
         frappe.log_error(title="Item API Error", message=frappe.get_traceback())
+        frappe.local.response["http_status_code"] = 500
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def create_supplier():
+    """POST: Create Supplier with auto-generated supplier_code"""
+    try:
+        data = json.loads(frappe.request.data or "{}")
+        supplier_name = data.get("supplier_name")
+        supplier_type = data.get("supplier_type", "Company")
+        supplier_group = data.get("supplier_group", "All Supplier Groups")
+        supplier_full_name=data.get("supplier_full_name")
+
+        if not supplier_full_name:
+            frappe.local.response["http_status_code"] = 400
+            return {
+                "status": "error",
+                "message": "Missing required field: supplier_name."
+            }
+
+        # Auto-generate supplier code
+        supplier_name = generate_supplier_code()
+
+        # Ensure Supplier Group exists
+        if not frappe.db.exists("Supplier Group", supplier_group):
+            group = frappe.get_doc({
+                "doctype": "Supplier Group",
+                "supplier_group_name": supplier_group,
+                "parent_supplier_group": "All Supplier Groups"
+            })
+            group.flags.ignore_permissions = True
+            group.insert()
+
+        # Create Supplier
+        supplier = frappe.get_doc({
+            "doctype": "Supplier",
+            "supplier_name": supplier_name,
+            "supplier_full_name": supplier_full_name,
+            "supplier_type": supplier_type,
+            "supplier_group": supplier_group
+        })
+        supplier.flags.ignore_permissions = True
+        supplier.insert()
+        frappe.db.commit()
+
+        frappe.local.response["http_status_code"] = 200
+        return {
+            "status": "success",
+            "message": f"Supplier '{supplier_name}' created successfully.",
+            "supplier_full_name": supplier_full_name
+        }
+
+    except Exception as e:
+        frappe.log_error(title="Supplier API Error", message=frappe.get_traceback())
         frappe.local.response["http_status_code"] = 500
         return {"status": "error", "message": str(e)}
