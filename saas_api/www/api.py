@@ -147,7 +147,7 @@ def create_item():
         return {
             "status": "success",
             "message": f"Item '{item_name}' created successfully.",
-            "item_code": item_code,
+            "item_code": item.item_code,
             "item_name": item_name,
             "simple_code": simple_code
         }
