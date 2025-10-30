@@ -132,7 +132,9 @@ def create_item():
         return {
             "status": "success",
             "message": f"Item '{item_name}' created successfully.",
-            "item_code": item_code
+            "item_code": item_code,
+            "item_name": item_name,
+            "simple_code":simple_code
         }
 
     except Exception as e:
@@ -266,8 +268,51 @@ def create_item_group():
             "group_name_for_item": group_name_for_item,
             "res":group
         }
-
     except Exception as e:
         frappe.log_error(title="Item Group API Error", message=frappe.get_traceback())
         frappe.local.response["http_status_code"] = 500
         return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def create_customer(
+    customer_name,
+    custom_trade_name=None,
+    custom_customer_tin=None,
+    custom_customer_vat=None,
+    custom_customer_address=None,
+    custom_telephone_number=None,
+    custom_province=None,
+    custom_street=None,
+    custom_city=None,
+    custom_house_no=None,
+    custom_email_address=None,
+    customer_type="Individual"
+):
+    try:
+        customer = frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": customer_name,
+            "customer_type": customer_type,
+            "custom_trade_name": custom_trade_name,
+            "custom_customer_tin": custom_customer_tin,
+            "custom_customer_vat": custom_customer_vat,
+            "custom_customer_address": custom_customer_address,
+            "custom_telephone_number": custom_telephone_number,
+            "custom_province": custom_province,
+            "custom_street": custom_street,
+            "custom_city": custom_city,
+            "custom_house_no": custom_house_no,
+            "custom_email_address": custom_email_address
+        })
+
+        # Ignore permission restrictions
+        customer.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        frappe.logger().info(f"✅ Customer created: {customer.name}")
+        return {"customer_id": customer.name}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Create Customer Error")
+        return {"error": str(e)}
