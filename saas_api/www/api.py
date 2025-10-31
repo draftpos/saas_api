@@ -163,38 +163,24 @@ def create_supplier():
     """POST: Create Supplier with auto-generated supplier_code"""
     try:
         data = json.loads(frappe.request.data or "{}")
-        supplier_name = data.get("supplier_name")
-        supplier_type = data.get("supplier_type", "Company")
-        supplier_group = data.get("supplier_group", "All Supplier Groups")
         supplier_full_name=data.get("supplier_full_name")
 
         if not supplier_full_name:
             frappe.local.response["http_status_code"] = 400
             return {
                 "status": "error",
-                "message": "Missing required field: supplier_name."
+                "message": "Missing required field: supplier_full_name."
             }
 
         # Auto-generate supplier code
         supplier_name = generate_supplier_code()
-
-        # Ensure Supplier Group exists
-        if not frappe.db.exists("Supplier Group", supplier_group):
-            group = frappe.get_doc({
-                "doctype": "Supplier Group",
-                "supplier_group_name": supplier_group,
-                "parent_supplier_group": "All Supplier Groups"
-            })
-            group.flags.ignore_permissions = True
-            group.insert()
-
         # Create Supplier
         supplier = frappe.get_doc({
             "doctype": "Supplier",
             "supplier_name": supplier_name,
             "supplier_full_name": supplier_full_name,
-            "supplier_type": supplier_type,
-            "supplier_group": supplier_group
+            "supplier_type": "Company",
+            "supplier_group": "All Supplier Groups"
         })
         supplier.flags.ignore_permissions = True
         supplier.insert()
@@ -204,7 +190,7 @@ def create_supplier():
         return {
             "status": "success",
             "message": f"Supplier '{supplier_name}' created successfully.",
-            "supplier_full_name": supplier_full_name
+            "supplier_full_name": supplier_full_name,
         }
 
     except Exception as e:
