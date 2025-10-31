@@ -243,7 +243,6 @@ app_license = "mit"
 # }
 
 
-
 doc_events = {
     "Item": {
         "before_insert": "saas_api.www.on_before.item_before_insert"
@@ -254,4 +253,8 @@ doc_events = {
     "Item Group": {
         "before_insert": "saas_api.www.on_before.item_group_before_insert"
     }
+}
+
+permission_query_conditions = {
+    "Supplier": "saas_api.www.on_before.supplier_permission_query"
 }

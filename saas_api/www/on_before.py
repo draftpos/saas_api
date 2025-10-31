@@ -31,3 +31,26 @@ def supplier_before_insert(doc, method):
 def item_group_before_insert(doc, method):
 
     doc.item_group_name = generate_item_group_code()
+
+
+def set_user_company(doc, method):
+    print("0000000000000000000000000")
+    if not doc.company:
+        user = frappe.get_doc("User", frappe.session.user)
+        # Assuming the user has one company assigned in User Permissions
+        allowed_companies = frappe.get_list("User Permission",
+                                            filters={"user": user.name, "allow": "Company"},
+                                            pluck="for_value")
+        if allowed_companies:
+            doc.company = allowed_companies[0]  # Pick the first allowed company
+        else:
+            frappe.throw("No company assigned for the logged-in user.") 
+
+
+def supplier_permission_query(user):
+    # Allow full access to Administrator or Supplier Managers
+    print("----------------------------------------now-------------------")
+    if not user or user == "Administrator":
+        return ""
+    # Regular users can only see what they created
+    return f"`tabSupplier`.owner = '{user}'"
