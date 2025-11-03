@@ -54,14 +54,23 @@ def supplier_permission_query(user):
         return ""
     # Regular users can only see what they created
     return f"`tabSupplier`.owner = '{user}'"
-def customer_permission_query(user):
-    # Allow admins unrestricted access
+
+def warehouse_permission_query(user):
+    # Allow full access to Administrator or Supplier Managers
+    print("----------------------------------------now-------------------")
     if not user or user == "Administrator":
         return ""
-    
-    # Skip permission check for new records (creation)
-    if frappe.local.request:
-        return ""
-    
     # Regular users can only see what they created
-    return f"`tabCustomer`.owner = '{user}'"
+    return f"`tabWarehouse`.owner = '{user}'"
+
+
+
+def users_permission_query(user):
+    # Allow full access to Administrator or Supplier Managers
+    print("----------------------------------------now-------------------")
+    if not user or user == "Administrator":
+        return ""
+    # Regular users can only see what they created
+    return f"`tabUser`.owner = '{user}'"
+
+
