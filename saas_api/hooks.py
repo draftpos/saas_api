@@ -256,5 +256,6 @@ doc_events = {
 }
 
 permission_query_conditions = {
-    "Supplier": "saas_api.www.on_before.supplier_permission_query"
+    "Supplier": "saas_api.www.on_before.supplier_permission_query",
+    "Customer": "saas_api.www.on_before.customer_permission_query"
 }

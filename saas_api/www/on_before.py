@@ -54,3 +54,12 @@ def supplier_permission_query(user):
         return ""
     # Regular users can only see what they created
     return f"`tabSupplier`.owner = '{user}'"
+
+def customer_permission_query(user):
+    # Allow full access to Administrator or Supplier Managers
+    print("----------------------------------------now-------------------")
+    if not user or user == "Administrator":
+        return ""
+    # Regular users can only see what they created
+    return f"`tabCustomer`.owner = '{user}'"
+
