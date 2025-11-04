@@ -74,3 +74,10 @@ def users_permission_query(user):
     return f"`tabUser`.owner = '{user}'"
 
 
+def item_group_permission_query(user):
+    # Full access for Administrator
+    if not user or user == "Administrator":
+        return ""
+    
+    # Regular users: only see Item Groups they created
+    return f"`tabItem Group`.owner = '{user}'"
