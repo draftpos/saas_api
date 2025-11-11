@@ -82,7 +82,7 @@ def create_item():
         stock_uom = data.get("stock_uom")
         valuation_rate = float(data.get("valuation_rate", 0))
         is_stock_item = int(data.get("is_stock_item", 1)),
-        tax_template=data.get("template_item")
+        tax_template=data.get("tax_template")
 
         # Validate required fields
         if not item_name or not item_group or not stock_uom:
@@ -143,11 +143,31 @@ def create_item():
 
         # Add tax row if tax_template is provided
         if tax_template:
-            if not hasattr(item, 'taxes'):
-                item.taxes = []
-            item.append("taxes", {
-                "item_tax_template": tax_template
-            })
+            if frappe.db.exists("Item Tax Template", tax_template):
+                template_doc = frappe.get_doc("Item Tax Template", tax_template)
+
+                # Default values
+                tax_rate_value = 0
+                tax_category = getattr(template_doc, "tax_category", "")
+
+                # If the template has tax rates, get the first one
+                if hasattr(template_doc, "taxes") and template_doc.taxes:
+                    tax_rate_value = template_doc.taxes[0].tax_rate or 0
+
+                if not hasattr(item, "taxes"):
+                    item.taxes = []
+
+                # Append tax row to the Item’s taxes child table
+                item.append("taxes", {
+                    "item_tax_template": template_doc.name,
+                    "tax_category": tax_category,
+                    "valid_from": getattr(template_doc, "valid_from", None),
+                    "minimum_net_rate": tax_rate_value,
+                    "maximum_net_rate": tax_rate_value
+                })
+            else:
+                frappe.log_error(f"Item Tax Template '{tax_template}' not found", "create_item API")
+
 
         item.flags.ignore_permissions = True
         item.insert()
