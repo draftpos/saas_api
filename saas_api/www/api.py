@@ -81,7 +81,8 @@ def create_item():
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
         valuation_rate = float(data.get("valuation_rate", 0))
-        is_stock_item = int(data.get("is_stock_item", 1))
+        is_stock_item = int(data.get("is_stock_item", 1)),
+        tax_template=data.get("template_item")
 
         # Validate required fields
         if not item_name or not item_group or not stock_uom:
@@ -129,7 +130,7 @@ def create_item():
             uom.insert()
 
         # Create Item without setting opening_stock (avoids Stock Entry)
-        item = frappe.get_doc({
+            item = frappe.get_doc({
             "doctype": "Item",
             "item_code": item_code,
             "item_name": item_name,
@@ -138,10 +139,19 @@ def create_item():
             "stock_uom": stock_uom,
             "is_stock_item": is_stock_item,
             "valuation_rate": valuation_rate
-        })
-        item.flags.ignore_permissions = True
-        item.insert()
-        frappe.db.commit()
+            })
+
+            # Add tax row if tax_template is provided
+            if tax_template:
+                if not hasattr(item, 'taxes'):
+                    item.taxes = []
+                item.append("taxes", {
+                    "item_tax_template": tax_template
+                })
+
+            item.flags.ignore_permissions = True
+            item.insert()
+            frappe.db.commit()
 
         frappe.local.response["http_status_code"] = 200
         return {
