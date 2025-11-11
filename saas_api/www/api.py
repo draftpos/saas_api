@@ -81,7 +81,7 @@ def create_item():
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
         valuation_rate = float(data.get("valuation_rate", 0))
-        is_stock_item = int(data.get("is_stock_item", 1)),
+        is_stock_item = int(data.get("is_stock_item", 1))
         tax_template=data.get("tax_template")
 
         # Validate required fields
