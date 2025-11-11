@@ -129,29 +129,29 @@ def create_item():
             uom.flags.ignore_permissions = True
             uom.insert()
 
-        # Create Item without setting opening_stock (avoids Stock Entry)
-            item = frappe.get_doc({
-            "doctype": "Item",
-            "item_code": item_code,
-            "item_name": item_name,
-            "simple_code": simple_code,
-            "item_group": item_group,
-            "stock_uom": stock_uom,
-            "is_stock_item": is_stock_item,
-            "valuation_rate": valuation_rate
+    # Create Item without setting opening_stock (avoids Stock Entry)
+        item = frappe.get_doc({
+        "doctype": "Item",
+        "item_code": item_code,
+        "item_name": item_name,
+        "simple_code": simple_code,
+        "item_group": item_group,
+        "stock_uom": stock_uom,
+        "is_stock_item": is_stock_item,
+        "valuation_rate": valuation_rate
+        })
+
+        # Add tax row if tax_template is provided
+        if tax_template:
+            if not hasattr(item, 'taxes'):
+                item.taxes = []
+            item.append("taxes", {
+                "item_tax_template": tax_template
             })
 
-            # Add tax row if tax_template is provided
-            if tax_template:
-                if not hasattr(item, 'taxes'):
-                    item.taxes = []
-                item.append("taxes", {
-                    "item_tax_template": tax_template
-                })
-
-            item.flags.ignore_permissions = True
-            item.insert()
-            frappe.db.commit()
+        item.flags.ignore_permissions = True
+        item.insert()
+        frappe.db.commit()
 
         frappe.local.response["http_status_code"] = 200
         return {
