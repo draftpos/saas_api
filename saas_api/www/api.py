@@ -347,3 +347,36 @@ def create_customer(
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Create Customer Error")
         return {"error": str(e)}
+@frappe.whitelist()
+def get_pl_cost_center(company, cost_center=None):
+    """
+    Fetch Profit and Loss values from `Profit and Loss per Cost Center` doctype.
+    Filters by company and optional cost center.
+    """
+
+    if not company:
+        frappe.throw("Company is required")
+
+    filters = {"company": company}
+
+    if cost_center:
+        filters["cost_center"] = cost_center
+
+    doc = frappe.get_all(
+        "Profit and Loss per Cost Center",
+        filters=filters,
+        fields=[
+            "company",
+            "cost_center",
+            "income",
+            "expense",
+            "gross_profit__loss",
+            "date"
+        ],
+        limit_page_length=1,
+    )
+
+    if not doc:
+        return {"error": "No data found for given filters"}
+
+    return doc[0]

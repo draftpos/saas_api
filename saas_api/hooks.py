@@ -247,9 +247,9 @@ doc_events = {
     "Item": {
         "before_insert": "saas_api.www.on_before.item_before_insert"
     },
-    "Supplier": {
-        "before_insert": "saas_api.www.on_before.supplier_before_insert"
-    },
+    # "Supplier": {
+    #     "before_insert": "saas_api.www.on_before.supplier_before_insert"
+    # },
     "Item Group": {
         "before_insert": "saas_api.www.on_before.item_group_before_insert"
     }
