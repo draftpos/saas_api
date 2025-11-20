@@ -552,3 +552,35 @@ def get_quotations(limit=20, start=0, status=None):
             q["customer"] = q.pop(customer_field)  # normalize field to "customer"
 
     return {"status": "success", "quotations": quotations}
+
+
+from frappe.model.mapper import get_mapped_doc
+@frappe.whitelist()
+def create_invoice_from_quotation(quotation_name):
+    # Map Quotation to Sales Invoice
+    invoice = get_mapped_doc(
+        "Quotation",
+        quotation_name,
+        {
+            "Quotation": {
+                "doctype": "Sales Invoice",
+                "field_map": {
+                    "customer_name": "customer",
+                    "grand_total": "grand_total"
+                }
+            },
+            "Quotation Item": {
+                "doctype": "Sales Invoice Item",
+                "field_map": {
+                    "item_code": "item_code",
+                    "qty": "qty",
+                    "rate": "rate"
+                }
+            }
+        },
+        ignore_permissions=True  # so your API user can create it
+    )
+
+    invoice.insert()  # create the Sales Invoice
+    frappe.db.commit()
+    return invoice.name
