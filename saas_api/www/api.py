@@ -487,72 +487,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
         frappe.log_error(frappe.get_traceback(), "Update Quotation Failed")
         return {"status": "error", "message": str(e)}
 
-@frappe.whitelist()
-def get_quotations(limit=20, start=0, status=None):
-    """
-    Get list of quotations for the logged-in user's company.
-    Admin sees all.
-    Optional filters: status (Draft/Submitted/Cancelled)
-    Pagination: limit, start
-    """
-
-    user = frappe.session.user
-    filters = {}
-
-    # Admin sees all companies
-    if user != "Administrator":
-        # Get user's default company
-        company = frappe.get_value("User Permission",
-                           {"user": user, "allow": "Company"},
-                           "for_value")
-        if not company:
-            return {"status": "error", "message": "User has no company assigned."}
-        filters["company"] = company
-
-    # Filter by status
-    if status:
-        status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
-        if status in status_map:
-            filters["docstatus"] = status_map[status]
-
-    # Determine which customer field exists
-    meta_fields = [f.fieldname for f in frappe.get_meta("Quotation").fields]
-    if "customer_name" in meta_fields:
-        customer_field = "customer_name"
-    elif "party_name" in meta_fields:
-        customer_field = "party_name"
-    else:
-        customer_field = None
-
-    fields_to_fetch = [
-        "name",
-        "transaction_date",
-        "valid_till",
-        "grand_total",
-        "docstatus",
-        "company"
-    ]
-    if customer_field:
-        fields_to_fetch.append(customer_field)
-
-    quotations = frappe.get_all(
-        "Quotation",
-        filters=filters,
-        fields=fields_to_fetch,
-        limit_start=start,
-        limit_page_length=limit,
-        order_by="creation desc"
-    )
-
-    # Convert docstatus to readable status
-    status_dict = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
-    for q in quotations:
-        q["status"] = status_dict.get(q["docstatus"], "Unknown")
-        if customer_field:
-            q["customer"] = q.pop(customer_field)  # normalize field to "customer"
-
-    return {"status": "success", "quotations": quotations}
-
 
 from frappe.model.mapper import get_mapped_doc
 @frappe.whitelist()
@@ -580,7 +514,99 @@ def create_invoice_from_quotation(quotation_name):
         },
         ignore_permissions=True  # so your API user can create it
     )
-
     invoice.insert()  # create the Sales Invoice
     frappe.db.commit()
     return invoice.name
+
+
+@frappe.whitelist()
+def get_quotations(limit=20, start=0, status=None):
+    """
+    Get list of quotations for the logged-in user's company.
+    Admin sees all.
+    Returns quotation + item details (item name, simple code, qty, rate, amount).
+    """
+
+    user = frappe.session.user
+    filters = {}
+
+    # Admin sees all companies
+    if user != "Administrator":
+        company = frappe.get_value(
+            "User Permission",
+            {"user": user, "allow": "Company"},
+            "for_value"
+        )
+        if not company:
+            return {"status": "error", "message": "User has no company assigned."}
+
+        filters["company"] = company
+
+    # Filter by status
+    if status:
+        status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
+        if status in status_map:
+            filters["docstatus"] = status_map[status]
+
+    # Determine which customer field exists
+    meta_fields = [f.fieldname for f in frappe.get_meta("Quotation").fields]
+    if "customer_name" in meta_fields:
+        customer_field = "customer_name"
+    elif "party_name" in meta_fields:
+        customer_field = "party_name"
+    else:
+        customer_field = None
+
+    fields_to_fetch = [
+        "name",
+        "transaction_date",
+        "valid_till",
+        "grand_total",
+        "docstatus",
+        "company"
+    ]
+
+    if customer_field:
+        fields_to_fetch.append(customer_field)
+
+    # Fetch quotation headers
+    quotations = frappe.get_all(
+        "Quotation",
+        filters=filters,
+        fields=fields_to_fetch,
+        limit_start=start,
+        limit_page_length=limit,
+        order_by="creation desc"
+    )
+
+    # Docstatus map
+    status_dict = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+
+    # Add items for each quotation
+    for q in quotations:
+        q["status"] = status_dict.get(q["docstatus"], "Unknown")
+
+        # Normalize customer name
+        if customer_field:
+            q["customer"] = q.pop(customer_field)
+
+        # -----------------------------
+        # FETCH ITEMS FOR THIS QUOTATION
+        # -----------------------------
+        q["items"] = frappe.get_all(
+            "Quotation Item",
+            filters={"parent": q["name"]},
+            fields=[
+                "item_code",
+                "item_name",
+                "description",
+                "qty",
+                "rate",
+                "amount",
+                "uom",
+                "simple_code"
+            ],
+            order_by="idx asc",
+        )
+
+    return {"status": "success", "quotations": quotations}
