@@ -412,7 +412,7 @@ def cancel_quotation(quotation_name):
 
         # Only cancel if submitted
         if doc.docstatus == 1:
-            doc.cancel(ignore_permissions=True)
+            doc.db_set("docstatus", 2)  # 2 = cancelled
             frappe.db.commit()
             return {"status": "success", "message": f"Quotation {quotation_name} cancelled."}
 
