@@ -347,36 +347,204 @@ def create_customer(
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Create Customer Error")
         return {"error": str(e)}
+
 @frappe.whitelist()
-def get_pl_cost_center(company, cost_center=None):
+def create_quotation(customer, items):
+    try:
+        if isinstance(items, str):
+            items = frappe.parse_json(items)
+
+        doc = frappe.new_doc("Quotation")
+        doc.customer = customer
+        doc.currency = "USD"
+        doc.conversion_rate = 1
+        doc.selling_price_list = "Standard Selling"
+
+        for it in items:
+            doc.append("items", {
+                "item_code": it["item_code"],
+                "qty": it.get("qty", 1),
+                "rate": it.get("rate", 0),
+                "uom": "Nos"
+            })
+
+        # Always insert first
+        doc.insert(ignore_permissions=True)
+
+        # FORCE save to DB
+        frappe.db.commit()
+
+        # Try submit, but don’t rollback the insert if submit fails
+        try:
+            doc.submit()
+            frappe.db.commit()
+        except Exception as e:
+            # Return draft quotation but tell user submit failed
+            return {
+                "status": "draft_created",
+                "quotation": doc.name,
+                "submit_error": str(e)
+            }
+
+        return {
+            "status": "success",
+            "quotation": doc.name
+        }
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "API Create Quotation Failed")
+        return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def cancel_quotation(quotation_name):
     """
-    Fetch Profit and Loss values from `Profit and Loss per Cost Center` doctype.
-    Filters by company and optional cost center.
+    Cancel a submitted Quotation.
+    Args:
+        quotation_name (str): The Quotation name, e.g. SAL-QTN-2025-00001
     """
 
-    if not company:
-        frappe.throw("Company is required")
+    try:
+        # Load the doc
+        doc = frappe.get_doc("Quotation", quotation_name)
 
-    filters = {"company": company}
+        # Only cancel if submitted
+        if doc.docstatus == 1:
+            doc.cancel()
+            frappe.db.commit()
+            return {"status": "success", "message": f"Quotation {quotation_name} cancelled."}
 
-    if cost_center:
-        filters["cost_center"] = cost_center
+        # Already draft
+        elif doc.docstatus == 0:
+            return {"status": "not_submitted", "message": f"Quotation {quotation_name} is still a draft."}
 
-    doc = frappe.get_all(
-        "Profit and Loss per Cost Center",
+        # Already cancelled
+        else:
+            return {"status": "already_cancelled", "message": f"Quotation {quotation_name} is already cancelled."}
+
+    except frappe.DoesNotExistError:
+        return {"status": "error", "message": f"Quotation {quotation_name} does not exist."}
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "Cancel Quotation Failed")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def update_quotation(quotation_name, customer=None, items=None, transaction_date=None, valid_till=None, terms=None):
+    try:
+        doc = frappe.get_doc("Quotation", quotation_name)
+
+        if doc.docstatus == 2:
+            return {"status": "error", "message": f"Quotation {quotation_name} is cancelled and cannot be modified."}
+
+        # If submitted, cancel first
+        if doc.docstatus == 1:
+            doc.cancel()
+            frappe.db.commit()
+
+        # Update fields
+        if customer:
+            doc.customer = customer
+        if transaction_date:
+            doc.transaction_date = transaction_date
+        if valid_till:
+            doc.valid_till = valid_till
+        if terms:
+            doc.tc_name = terms
+
+        # Update items
+        if items:
+            if isinstance(items, str):
+                items = frappe.parse_json(items)
+            doc.set("items", [])
+            for it in items:
+                doc.append("items", {
+                    "item_code": it.get("item_code"),
+                    "qty": it.get("qty", 1),
+                    "rate": it.get("rate"),
+                    "uom": "Nos"
+                })
+
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        # Resubmit if it was submitted before
+        if doc.docstatus == 1:
+            doc.submit()
+            frappe.db.commit()
+
+        return {"status": "success", "message": f"Quotation {quotation_name} updated.", "quotation": doc.name}
+
+    except frappe.DoesNotExistError:
+        return {"status": "error", "message": f"Quotation {quotation_name} does not exist."}
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "Update Quotation Failed")
+        return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def get_quotations(limit=20, start=0, status=None):
+    """
+    Get list of quotations for the logged-in user's company.
+    Admin sees all.
+    Optional filters: status (Draft/Submitted/Cancelled)
+    Pagination: limit, start
+    """
+
+    user = frappe.session.user
+    filters = {}
+
+    # Admin sees all companies
+    if user != "Administrator":
+        # Get user's default company
+        company = frappe.db.get_value("User", user, "default_company")
+        if not company:
+            return {"status": "error", "message": "User has no company assigned."}
+        filters["company"] = company
+
+    # Filter by status
+    if status:
+        status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
+        if status in status_map:
+            filters["docstatus"] = status_map[status]
+
+    # Determine which customer field exists
+    meta_fields = [f.fieldname for f in frappe.get_meta("Quotation").fields]
+    if "customer_name" in meta_fields:
+        customer_field = "customer_name"
+    elif "party_name" in meta_fields:
+        customer_field = "party_name"
+    else:
+        customer_field = None
+
+    fields_to_fetch = [
+        "name",
+        "transaction_date",
+        "valid_till",
+        "grand_total",
+        "docstatus",
+        "company"
+    ]
+    if customer_field:
+        fields_to_fetch.append(customer_field)
+
+    quotations = frappe.get_all(
+        "Quotation",
         filters=filters,
-        fields=[
-            "company",
-            "cost_center",
-            "income",
-            "expense",
-            "gross_profit__loss",
-            "date"
-        ],
-        limit_page_length=1,
+        fields=fields_to_fetch,
+        limit_start=start,
+        limit_page_length=limit,
+        order_by="creation desc"
     )
 
-    if not doc:
-        return {"error": "No data found for given filters"}
+    # Convert docstatus to readable status
+    status_dict = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+    for q in quotations:
+        q["status"] = status_dict.get(q["docstatus"], "Unknown")
+        if customer_field:
+            q["customer"] = q.pop(customer_field)  # normalize field to "customer"
 
-    return doc[0]
+    return {"status": "success", "quotations": quotations}
