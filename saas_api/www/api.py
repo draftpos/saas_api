@@ -502,7 +502,9 @@ def get_quotations(limit=20, start=0, status=None):
     # Admin sees all companies
     if user != "Administrator":
         # Get user's default company
-        company = frappe.db.get_value("User", user, "default_company")
+        company = frappe.get_value("User Permission",
+                           {"user": user, "allow": "Company"},
+                           "for_value")
         if not company:
             return {"status": "error", "message": "User has no company assigned."}
         filters["company"] = company
