@@ -83,6 +83,7 @@ def create_item():
         valuation_rate = float(data.get("valuation_rate", 0))
         is_stock_item = int(data.get("is_stock_item", 1))
         tax_template=data.get("tax_template")
+        allow_sales=data.get("allow_sales")
 
         # Validate required fields
         if not item_name or not item_group or not stock_uom:
@@ -138,8 +139,9 @@ def create_item():
         "item_group": item_group,
         "stock_uom": stock_uom,
         "is_stock_item": is_stock_item,
-        "valuation_rate": valuation_rate
+        "valuation_rate": valuation_rate,
         })
+        item.is_sales_item = allow_sales
 
         # Add tax row if tax_template is provided
         if tax_template:
@@ -318,9 +320,12 @@ def create_customer(
     custom_city=None,
     custom_house_no=None,
     custom_email_address=None,
-    customer_type="Individual"
+    customer_type="Individual",
+    price_list=None  # New parameter
 ):
     try:
+        if not price_list:
+            frappe.throw("Price List is required for this customer.")
         customer = frappe.get_doc({
             "doctype": "Customer",
             "customer_name": customer_name,
@@ -349,16 +354,21 @@ def create_customer(
         return {"error": str(e)}
 
 @frappe.whitelist()
-def create_quotation(customer, items):
+def create_quotation(customer, items,reference_number):
     try:
         if isinstance(items, str):
             items = frappe.parse_json(items)
+
+        if not reference_number:
+            frappe.throw("Reference Number is required.")
+
 
         doc = frappe.new_doc("Quotation")
         doc.customer = customer
         doc.currency = "USD"
         doc.conversion_rate = 1
         doc.selling_price_list = "Standard Selling"
+        doc.reference_number=reference_number
 
         for it in items:
             doc.append("items", {
@@ -563,7 +573,8 @@ def get_quotations(limit=20, start=0, status=None):
         "valid_till",
         "grand_total",
         "docstatus",
-        "company"
+        "company",
+        "reference_number"
     ]
 
     if customer_field:
