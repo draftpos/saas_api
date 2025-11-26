@@ -621,3 +621,46 @@ def get_quotations(limit=20, start=0, status=None):
         )
 
     return {"status": "success", "quotations": quotations}
+
+import frappe
+from frappe import _
+
+
+@frappe.whitelist(allow_guest=False)
+def upload_company_logo():
+    """
+    Upload a logo to a company.
+    Expects multipart/form-data with:
+        - company_name
+        - file
+    """
+    company_name = frappe.form_dict.get("company_name")
+    upload_file = frappe.request.files.get("file")  # <-- THIS is key
+
+    if not company_name:
+        frappe.throw(_("Company name is required"))
+
+    if not upload_file:
+        frappe.throw(_("File is required"))
+
+    # Check company exists
+    if not frappe.db.exists("Company", company_name):
+        frappe.throw(_("Company {0} does not exist").format(company_name))
+
+    # Save file in Frappe
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": upload_file.filename,
+        "attached_to_doctype": "Company",
+        "attached_to_name": company_name,
+        "content": upload_file.read()
+    }).insert()
+
+    # Update company's logo field
+    frappe.db.set_value("Company", company_name, "custom_logo", file_doc.file_url)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "file_url": file_doc.file_url
+    }
