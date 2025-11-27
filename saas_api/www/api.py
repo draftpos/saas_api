@@ -750,3 +750,48 @@ def get_account():
         create_response("417", {"error": str(e)})
         frappe.log_error(message=str(e), title="Error fetching account data")
         return
+
+@frappe.whitelist()
+def get_customer_balance(customer, company=None):
+    # 1️⃣ Check if customer exists
+    if not frappe.db.exists("Customer", customer):
+        frappe.throw(f"Customer '{customer}' does not exist.")
+
+    # 2️⃣ Get company from user permissions if not provided
+    if not company:
+        user = frappe.session.user
+        permissions = frappe.get_all(
+            "User Permission",
+            filters={"user": user, "allow": "Company"},
+            fields=["for_value", "is_default"]
+        )
+
+        default_company = None
+        for perm in permissions:
+            if perm.get("is_default"):
+                default_company = perm.get("for_value")
+                break
+
+        if not default_company and permissions:
+            default_company = permissions[0].get("for_value")
+
+        company = default_company
+
+    if not company:
+        frappe.throw("No default Company found for the logged-in user.")
+
+    # 3️⃣ Fetch balance
+    result = frappe.db.sql("""
+        SELECT SUM(debit) - SUM(credit)
+        FROM `tabGL Entry`
+        WHERE party_type = 'Customer'
+          AND party = %s
+          AND company = %s
+    """, (customer, company))
+
+    # If no GL entries exist, result[0][0] is None
+    balance = result[0][0]
+    if balance is None:
+        return (f"No GL entries found for customer '{customer}' in company '{company}'.")
+
+    return balance
