@@ -3,13 +3,11 @@ import json
 import random
 import string
 
-
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
     prefix = "HA-"
     random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
 
-    # Find last item_code starting with HA-
     last_item = frappe.db.sql("""
         SELECT item_code FROM `tabItem` 
         WHERE item_code LIKE %s
@@ -38,13 +36,11 @@ def generate_supplier_code():
     """Generate a unique supplier code: HS-XXXXX-### style with sequential last 3 digits"""
     prefix = "HS-"
 
-    # Get the last supplier created
     last_supplier = frappe.db.sql("""
         SELECT supplier_name FROM `tabSupplier`
         WHERE supplier_name LIKE %s
         ORDER BY creation DESC LIMIT 1
     """, (f"{prefix}%-%%",))
-    print(f"---------------------{last_supplier}")
 
     if last_supplier:
         last_code = last_supplier[0][0]
@@ -56,11 +52,9 @@ def generate_supplier_code():
     else:
         next_num = 1
 
-    # Generate new random 5-letter prefix
     random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
     new_code = f"{prefix}{random_letters}-{next_num:03d}"
 
-    # Ensure uniqueness
     while frappe.db.exists("Supplier", {"supplier_code": new_code}):
         next_num += 1
         random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
@@ -378,18 +372,12 @@ def create_quotation(customer, items,reference_number):
                 "uom": "Nos"
             })
 
-        # Always insert first
         doc.insert(ignore_permissions=True)
-
-        # FORCE save to DB
         frappe.db.commit()
-
-        # Try submit, but don’t rollback the insert if submit fails
         try:
             doc.submit()
             frappe.db.commit()
         except Exception as e:
-            # Return draft quotation but tell user submit failed
             return {
                 "status": "draft_created",
                 "quotation": doc.name,
@@ -415,12 +403,8 @@ def cancel_quotation(quotation_name):
     """
 
     try:
-        # Load the doc
-
-
         doc = frappe.get_doc("Quotation", quotation_name)
 
-        # Only cancel if submitted
         if doc.docstatus == 1:
             doc.db_set("docstatus", 2)  # 2 = cancelled
             frappe.db.commit()
@@ -430,7 +414,6 @@ def cancel_quotation(quotation_name):
         elif doc.docstatus == 0:
             return {"status": "not_submitted", "message": f"Quotation {quotation_name} is still a draft."}
 
-        # Already cancelled
         else:
             return {"status": "already_cancelled", "message": f"Quotation {quotation_name} is already cancelled."}
 
@@ -455,8 +438,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
         if doc.docstatus == 1:
             doc.cancel()
             frappe.db.commit()
-
-        # Update fields
         if customer:
             doc.customer = customer
         if transaction_date:
@@ -466,7 +447,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
         if terms:
             doc.tc_name = terms
 
-        # Update items
         if items:
             if isinstance(items, str):
                 items = frappe.parse_json(items)
@@ -481,8 +461,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
 
         doc.save(ignore_permissions=True)
         frappe.db.commit()
-
-        # Resubmit if it was submitted before
         if doc.docstatus == 1:
             doc.submit()
             frappe.db.commit()
@@ -501,7 +479,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
 from frappe.model.mapper import get_mapped_doc
 @frappe.whitelist()
 def create_invoice_from_quotation(quotation_name):
-    # Map Quotation to Sales Invoice
     invoice = get_mapped_doc(
         "Quotation",
         quotation_name,
@@ -522,9 +499,9 @@ def create_invoice_from_quotation(quotation_name):
                 }
             }
         },
-        ignore_permissions=True  # so your API user can create it
+        ignore_permissions=True  
     )
-    invoice.insert()  # create the Sales Invoice
+    invoice.insert()
     frappe.db.commit()
     return invoice.name
 
@@ -540,7 +517,6 @@ def get_quotations(limit=20, start=0, status=None):
     user = frappe.session.user
     filters = {}
 
-    # Admin sees all companies
     if user != "Administrator":
         company = frappe.get_value(
             "User Permission",
@@ -551,14 +527,11 @@ def get_quotations(limit=20, start=0, status=None):
             return {"status": "error", "message": "User has no company assigned."}
 
         filters["company"] = company
-
-    # Filter by status
     if status:
         status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
         if status in status_map:
             filters["docstatus"] = status_map[status]
 
-    # Determine which customer field exists
     meta_fields = [f.fieldname for f in frappe.get_meta("Quotation").fields]
     if "customer_name" in meta_fields:
         customer_field = "customer_name"
@@ -579,8 +552,6 @@ def get_quotations(limit=20, start=0, status=None):
 
     if customer_field:
         fields_to_fetch.append(customer_field)
-
-    # Fetch quotation headers
     quotations = frappe.get_all(
         "Quotation",
         filters=filters,
@@ -589,15 +560,10 @@ def get_quotations(limit=20, start=0, status=None):
         limit_page_length=limit,
         order_by="creation desc"
     )
-
-    # Docstatus map
     status_dict = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
 
-    # Add items for each quotation
     for q in quotations:
         q["status"] = status_dict.get(q["docstatus"], "Unknown")
-
-        # Normalize customer name
         if customer_field:
             q["customer"] = q.pop(customer_field)
 
@@ -635,7 +601,7 @@ def upload_company_logo():
         - file
     """
     company_name = frappe.form_dict.get("company_name")
-    upload_file = frappe.request.files.get("file")  # <-- THIS is key
+    upload_file = frappe.request.files.get("file")  
 
     if not company_name:
         frappe.throw(_("Company name is required"))
@@ -643,11 +609,8 @@ def upload_company_logo():
     if not upload_file:
         frappe.throw(_("File is required"))
 
-    # Check company exists
     if not frappe.db.exists("Company", company_name):
         frappe.throw(_("Company {0} does not exist").format(company_name))
-
-    # Save file in Frappe
     file_doc = frappe.get_doc({
         "doctype": "File",
         "file_name": upload_file.filename,
@@ -655,8 +618,6 @@ def upload_company_logo():
         "attached_to_name": company_name,
         "content": upload_file.read()
     }).insert()
-
-    # Update company's logo field
     frappe.db.set_value("Company", company_name, "custom_logo", file_doc.file_url)
     frappe.db.commit()
 
@@ -673,7 +634,6 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
     user = frappe.session.user
     filters = {}
 
-    # Admin sees all companies
     if user != "Administrator":
         company = frappe.get_value(
             "User Permission",
@@ -684,18 +644,13 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
             return {"status": "error", "message": "User has no company assigned."}
 
         filters["company"] = company
-
-    # Date filter
     if date:
         filters["transaction_date"] = date
 
-    # Filter by status
     if status:
         status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
         if status in status_map:
             filters["docstatus"] = status_map[status]
-
-    # Determine which customer field exists
     meta_fields = [f.fieldname for f in frappe.get_meta("Quotation").fields]
     if "customer_name" in meta_fields:
         customer_field = "customer_name"
@@ -717,7 +672,6 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
     if customer_field:
         fields_to_fetch.append(customer_field)
 
-    # Fetch quotation headers
     quotations = frappe.get_all(
         "Quotation",
         filters=filters,
@@ -727,14 +681,9 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
         order_by="creation desc"
     )
 
-    # Docstatus map
     status_dict = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
-
-    # Add items for each quotation
     for q in quotations:
         q["status"] = status_dict.get(q["docstatus"], "Unknown")
-
-        # Normalize customer name
         if customer_field:
             q["customer"] = q.pop(customer_field)
 
@@ -756,5 +705,48 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
             ],
             order_by="idx asc",
         )
-
     return {"status": "success", "quotations": quotations}
+    
+@frappe.whitelist()
+def get_account():
+    try:
+        # Get logged-in user
+        user = frappe.session.user
+
+        # Try to get employee linked to user
+        employee_company = frappe.db.get_value(
+            "Employee",
+            {"user_id": user},
+            "company"
+        )
+
+        # Fallback: Use system default company
+        if not employee_company:
+            employee_company = frappe.db.get_single_value("Global Defaults", "default_company")
+
+        # Fetch accounts for that company only
+        accounts = frappe.get_all(
+            "Account",
+            filters={
+                "company": employee_company,
+                "account_type": ["in", ["Cash", "Bank"]],
+                "is_group": 0
+            },
+            fields=[
+                "name",
+                "account_name",
+                "account_number",
+                "company",
+                "parent_account",
+                "account_type",
+                "account_currency"
+            ]
+        )
+
+        return {"status ": 200, "accounts":accounts}
+        return
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(message=str(e), title="Error fetching account data")
+        return
