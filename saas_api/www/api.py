@@ -822,7 +822,7 @@ def generate_keys(user):
     return {"api_secret": api_secret, "api_key": api_key}
 
 @frappe.whitelist(allow_guest=True)
-def login(usr,pwd, timezone):
+def login(usr, pwd, timezone):
 
     local_tz = str(get_localzone())
     erpnext_tz = frappe.utils.get_system_timezone()
@@ -834,47 +834,24 @@ def login(usr,pwd, timezone):
 
     try:
         login_manager = frappe.auth.LoginManager()
-        login_manager.authenticate(user=usr,pwd=pwd)
+        login_manager.authenticate(user=usr, pwd=pwd)
         login_manager.post_login()
     except frappe.exceptions.AuthenticationError:
         frappe.clear_messages()
         frappe.local.response.http_status_code = 422
-        frappe.local.response["message"] =  "Invalid Email or Password"
+        frappe.local.response["message"] = "Invalid Email or Password"
         return
-    
-    user = frappe.get_doc('User',frappe.session.user)
-    api_generate=generate_keys(user)
-       
-    token_string = str(api_generate['api_key']) +":"+ str(api_generate['api_secret'])
 
-    # Get user permissions for warehouse and cost center
-    warehouses = frappe.get_list("User Permission", 
-        filters={
-            "user": user.name,
-            "allow": "Warehouse"
-        },
-        pluck="for_value",
-        ignore_permissions=True
-    )
-    
-    cost_centers = frappe.get_list("User Permission",
-        filters={
-            "user": user.name, 
-            "allow": "Cost Center"
-        },
-        pluck="for_value",
-        ignore_permissions=True
-    )
-    default_warehouse = frappe.db.get_value("User Permission", 
-        {"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
-    
-    default_cost_center = frappe.db.get_value("User Permission",
-        {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
+    user = frappe.get_doc('User', frappe.session.user)
+    api_generate = generate_keys(user)
+    token_string = f"{api_generate['api_key']}:{api_generate['api_secret']}"
 
-    default_customer = frappe.db.get_value("User Permission",
-        {"user": user.name, "allow": "Customer", "is_default": 1}, "for_value") 
+    # Get default permissions
+    default_warehouse = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
+    default_cost_center = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
+    default_customer = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Customer", "is_default": 1}, "for_value")
 
-    # Get items and their quantities from default warehouse
+    # Warehouse items
     warehouse_items = []
     if default_warehouse:
         warehouse_items = frappe.db.sql("""
@@ -890,88 +867,34 @@ def login(usr,pwd, timezone):
             WHERE bin.warehouse = %s
         """, default_warehouse, as_dict=1)
 
-    # Get customers with the same cost center as the default cost center
+    # Customers linked to cost center
     customers = []
     if default_cost_center:
         customers = frappe.get_list("Customer",
-            filters={
-                "custom_cost_center": default_cost_center
-            },
+            filters={"custom_cost_center": default_cost_center},
             fields=["name", "customer_name", "customer_group", "territory", "custom_cost_center"],
             ignore_permissions=True
         )
 
-    # Get all docs created by or assigned to the user
-    company_registration = frappe.db.sql("""
-        SELECT name, organization_name, status, company, industry, country, city,company_status,subscription,days_left
-        FROM `tabCompany Registration`
-        WHERE user_created = %(user)s
-        OR name IN (
-            SELECT reference_name
-            FROM `tabToDo`
-            WHERE reference_type = 'Company Registration'
-                AND allocated_to = %(user)s
-        )
-    """, {"user": usr}, as_dict=True)
-
-    company_permission =frappe.db.get_all("User Permission",
-        filters={
-            "user": usr,
-            "allow": "Company Registration",
-        },
-        fields=["name", "allow", "for_value"],
-        ignore_permissions=True
-    )
-
-    # Check if user has company registration
-    has_company = bool(company_registration)
-    
-    # Prepare company registration message if needed
-    company_message = None
-    if not has_company:
-        company_message = "You need to register your company to access all features."
-
-    # user_role = frappe.get_doc('User',frappe.session.user)
-    frappe.response["user"] =   {
+    frappe.response["user"] = {
         "first_name": escape_html(user.first_name or ""),
         "last_name": escape_html(user.last_name or ""),
         "gender": escape_html(user.gender or "") or "",
-        "birth_date": user.birth_date or "",       
+        "birth_date": user.birth_date or "",
         "mobile_no": user.mobile_no or "",
-        "username":user.username or "",
-        "full_name":user.full_name or "",
-        "email":user.email or "",
+        "username": user.username or "",
+        "full_name": user.full_name or "",
+        "email": user.email or "",
         "warehouse": default_warehouse,
         "cost_center": default_cost_center,
         "default_customer": default_customer,
         "customers": customers,
         "warehouse_items": warehouse_items,
-        "time_zone": f"{local_tz}{erpnext_tz}",
-        "company" : company_registration[0].get("company") if company_registration else None,
-        "has_company_registration": has_company,
-        "company_registration": company_registration[0] if company_registration else None,
-        "company_message": company_message,
+        "time_zone": {"client": local_tz, "server": erpnext_tz},
         "role": user.get("role_select") or "",
-        "pin":user.get("pin")
-        # "subscription":company_registration[0].get("subscription") if company_registration else None,
-# 
+        "pin": user.get("pin")
     }
 
     frappe.response["token_string"] = token_string
-    frappe.response["token"] =  base64.b64encode(token_string.encode("ascii")).decode("utf-8")
-    
-    # Add help information if no company
-    if not has_company:
-        frappe.response["help"] = {
-            "endpoint": "/api/method/havano_company.apis.company.register_company",
-            "required_fields": ["user_email", "organization_name"],
-            "message": "Please register your company to access all features",
-            "example": {
-                "user_email": user.email,
-                "organization_name": "Your Company Name",
-                "industry": "Retail grocery"
-            }
-        }
-    
+    frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
-
