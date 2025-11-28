@@ -898,12 +898,10 @@ def login(usr, pwd, timezone):
     frappe.response["token_string"] = token_string
     frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
-
-
-
 @frappe.whitelist()
 def create_sales_invoice():
     invoice_data = frappe.local.form_dict
+
     try:
         si_doc = frappe.get_doc({
             "doctype": "Sales Invoice",
@@ -911,9 +909,12 @@ def create_sales_invoice():
             "company": invoice_data.get("company"),
             "set_warehouse": invoice_data.get("set_warehouse"),
             "cost_center": invoice_data.get("cost_center"),
-            "update_stock": invoice_data.get("update_stock"),
-            "posting_date": invoice_data.get("posting_date"),  # Added posting_date
-            "posting_time": invoice_data.get("posting_time"),
+            "update_stock": invoice_data.get("update_stock", 1),
+            "posting_date": invoice_data.get("posting_date") or frappe.utils.nowdate(),
+            "posting_time": invoice_data.get("posting_time") or frappe.utils.nowtime(),
+            "custom_sales_reference": invoice_data.get("custom_sales_reference"),
+            "taxes_and_charges": invoice_data.get("taxes_and_charges"),
+            "payments": invoice_data.get("payments", []),
             "items": [
                 {
                     "item_name": item.get("item_name"),
@@ -921,25 +922,33 @@ def create_sales_invoice():
                     "rate": item.get("rate"),
                     "qty": item.get("qty"),
                     "cost_center": item.get("cost_center")
-                }
-                for item in invoice_data.get("items", [])
+                } for item in invoice_data.get("items", [])
             ]
         })
-        
+
+        # Insert ignoring permissions
         si_doc.insert()
+
+        # Temporarily ignore permissions for submission
+        frappe.flags.ignore_permissions = True
         si_doc.submit()
-        
+        frappe.flags.ignore_permissions = False
+
+        # Refresh to make sure it’s in DB
+        si_doc.reload()
+
         return {
             "status": "success",
-            "message": "Sales Invoice created successfully",
+            "message": "Sales Invoice created and submitted successfully",
             "invoice_name": si_doc.name,
+            "docstatus": si_doc.docstatus,
             "created_by": si_doc.owner,
             "created_on": si_doc.creation
         }
-    
+
+    except frappe.ValidationError as ve:
+        return {"status": "error", "message": str(ve)}
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Sales Invoice Creation Error")
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
