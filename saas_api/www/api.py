@@ -898,17 +898,40 @@ def login(usr, pwd, timezone):
     frappe.response["token_string"] = token_string
     frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
+
+    
 @frappe.whitelist()
 def create_sales_invoice():
     invoice_data = frappe.local.form_dict
 
     try:
+        # Helper function to get default for user if not provided
+        def get_user_default(user, fieldname):
+            value = invoice_data.get(fieldname)
+            if not value:
+                # Try from User Defaults
+                value = frappe.defaults.get_user_default(fieldname, user)
+            if not value:
+                # Try from User Doc fields directly
+                value = frappe.db.get_value("User", user, fieldname)
+            if not value:
+                frappe.throw(f"{fieldname.replace('_',' ').title()} not provided and no default found for user")
+            return value
+
+        user = frappe.session.user
+
+        # Resolve missing fields from defaults
+        company = get_user_default(user, "company")
+        cost_center = get_user_default(user, "cost_center")
+        warehouse = get_user_default(user, "set_warehouse")
+        customer = get_user_default(user, "customer")
+
         si_doc = frappe.get_doc({
             "doctype": "Sales Invoice",
-            "customer": invoice_data.get("customer"),
-            "company": invoice_data.get("company"),
-            "set_warehouse": invoice_data.get("set_warehouse"),
-            "cost_center": invoice_data.get("cost_center"),
+            "customer": customer,
+            "company": company,
+            "set_warehouse": warehouse,
+            "cost_center": cost_center,
             "update_stock": invoice_data.get("update_stock", 1),
             "posting_date": invoice_data.get("posting_date") or frappe.utils.nowdate(),
             "posting_time": invoice_data.get("posting_time") or frappe.utils.nowtime(),
@@ -921,7 +944,7 @@ def create_sales_invoice():
                     "item_code": item.get("item_code"),
                     "rate": item.get("rate"),
                     "qty": item.get("qty"),
-                    "cost_center": item.get("cost_center")
+                    "cost_center": item.get("cost_center") or cost_center
                 } for item in invoice_data.get("items", [])
             ]
         })
@@ -934,7 +957,7 @@ def create_sales_invoice():
         si_doc.submit()
         frappe.flags.ignore_permissions = False
 
-        # Refresh to make sure it’s in DB
+        # Reload to get updated docstatus
         si_doc.reload()
 
         return {
