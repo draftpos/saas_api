@@ -898,3 +898,48 @@ def login(usr, pwd, timezone):
     frappe.response["token_string"] = token_string
     frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
+
+
+
+@frappe.whitelist()
+def create_sales_invoice():
+    invoice_data = frappe.local.form_dict
+    try:
+        si_doc = frappe.get_doc({
+            "doctype": "Sales Invoice",
+            "customer": invoice_data.get("customer"),
+            "company": invoice_data.get("company"),
+            "set_warehouse": invoice_data.get("set_warehouse"),
+            "cost_center": invoice_data.get("cost_center"),
+            "update_stock": invoice_data.get("update_stock"),
+            "posting_date": invoice_data.get("posting_date"),  # Added posting_date
+            "posting_time": invoice_data.get("posting_time"),
+            "items": [
+                {
+                    "item_name": item.get("item_name"),
+                    "item_code": item.get("item_code"),
+                    "rate": item.get("rate"),
+                    "qty": item.get("qty"),
+                    "cost_center": item.get("cost_center")
+                }
+                for item in invoice_data.get("items", [])
+            ]
+        })
+        
+        si_doc.insert()
+        si_doc.submit()
+        
+        return {
+            "status": "success",
+            "message": "Sales Invoice created successfully",
+            "invoice_name": si_doc.name,
+            "created_by": si_doc.owner,
+            "created_on": si_doc.creation
+        }
+    
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Sales Invoice Creation Error")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
