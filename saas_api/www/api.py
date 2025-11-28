@@ -899,7 +899,7 @@ def login(usr, pwd, timezone):
     frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
 
-    
+
 @frappe.whitelist()
 def create_sales_invoice():
     invoice_data = frappe.local.form_dict
@@ -975,3 +975,83 @@ def create_sales_invoice():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Sales Invoice Creation Error")
         return {"status": "error", "message": str(e)}
+
+
+
+@frappe.whitelist()
+def create_customer(
+    customer_name,
+    custom_trade_name=None,
+    custom_customer_tin=None,
+    custom_customer_vat=None,
+    custom_customer_address=None,
+    custom_telephone_number=None,
+    custom_province=None,
+    custom_street=None,
+    custom_city=None,
+    custom_house_no=None,
+    custom_email_address=None,
+    customer_type="Individual",
+    default_price_list=None,
+    default_cost_center=None,
+    default_warehouse=None
+
+):
+    try:
+        if not default_price_list:
+            frappe.throw("Price List is required for this customer.")
+        customer = frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": customer_name,
+            "customer_type": customer_type,
+            "custom_trade_name": custom_trade_name,
+            "custom_customer_tin": custom_customer_tin,
+            "custom_customer_vat": custom_customer_vat,
+            "custom_customer_address": custom_customer_address,
+            "custom_telephone_number": custom_telephone_number,
+            "custom_province": custom_province,
+            "custom_street": custom_street,
+            "custom_city": custom_city,
+            "custom_house_no": custom_house_no,
+            "custom_email_address": custom_email_address,
+            "default_price_list":default_price_list,
+            "custom_cost_center": default_cost_center,
+            "custom_warehouse": default_warehouse
+        })
+        # Ignore permission restrictions
+        customer.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        frappe.logger().info(f"✅ Customer created: {customer.name}")
+        return {"customer_id": customer.name}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Create Customer Error")
+        return {"error": str(e)}
+
+
+@frappe.whitelist()
+def get_my_product_bundles():
+    user = frappe.session.user
+    frappe.log_error(f"User: {user}", "DEBUG get_my_product_bundles")
+
+    if user == "Guest":
+        return {"error": "You must be logged in"}
+
+    bundles = frappe.get_all(
+        "Product Bundle",
+        filters={"owner": user},
+        fields=["name", "new_item_code", "description", "creation"]
+    )
+
+    for b in bundles:
+        items = frappe.get_all(
+            "Product Bundle Item",
+            filters={"parent": b.name},
+            fields=["item_code", "item_name","qty"]
+        )
+        b["items"] = items
+
+    frappe.log_error(f"Bundles found: {len(bundles)}", "DEBUG get_my_product_bundles")
+    return bundles
+
