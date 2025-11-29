@@ -82,7 +82,7 @@ def create_item():
         data = json.loads(frappe.request.data or "{}")
 
         item_name = data.get("item_name")
-        simple_code = data.get("simple_code")
+        # simple_code = data.get("simple_code")
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
         valuation_rate = float(data.get("valuation_rate", 0))
@@ -99,19 +99,19 @@ def create_item():
             }
 
         # Check if user already has an item with the same simple_code
-        existing_item = frappe.db.exists(
-            "Item",
-            {
-                "simple_code": simple_code,
-                "owner": frappe.session.user
-            }
-        )
-        if existing_item:
-            frappe.local.response["http_status_code"] = 409  # Conflict
-            return {
-                "status": "error",
-                "message": f"An item with simple_code '{simple_code}' already exists for this Company."
-            }
+        # existing_item = frappe.db.exists(
+        #     "Item",
+        #     {
+        #         "simple_code": simple_code,
+        #         "owner": frappe.session.user
+        #     }
+        # )
+        # if existing_item:
+        #     frappe.local.response["http_status_code"] = 409  # Conflict
+        #     return {
+        #         "status": "error",
+        #         "message": f"An item with simple_code '{simple_code}' already exists for this Company."
+        #     }
 
         # Auto-generate item code
         item_code = generate_item_code()
@@ -140,7 +140,7 @@ def create_item():
         "doctype": "Item",
         "item_code": item_code,
         "item_name": item_name,
-        "simple_code": simple_code,
+#"simple_code": simple_code,
         "item_group": item_group,
         "stock_uom": stock_uom,
         "is_stock_item": is_stock_item,
@@ -186,7 +186,7 @@ def create_item():
             "message": f"Item '{item_name}' created successfully.",
             "item_code": item.item_code,
             "item_name": item_name,
-            "simple_code": simple_code
+            # "simple_code": simple_code
         }
 
     except Exception as e:
