@@ -1136,7 +1136,6 @@ def get_user_data():
                 ignore_permissions=True
             )
 
-
         frappe.response["user"] = {
             "first_name": escape_html(user.first_name or ""),
             "last_name": escape_html(user.last_name or ""),
