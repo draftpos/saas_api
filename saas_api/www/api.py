@@ -1190,3 +1190,29 @@ def get_user_data():
         frappe.log_error(frappe.get_traceback(), "get_user_data API Error")
         frappe.local.response["http_status_code"] = 500
         return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def default_cost_center(company):
+    """
+    Returns the first Cost Center for a given company
+    whose name starts with 'Main' (case-insensitive).
+    """
+    if not company:
+        return None
+
+    # Fetch all cost centers for this company
+    cost_centers = frappe.get_all(
+        "Cost Center",
+        filters={"company": company},
+        fields=["name"],
+    )
+
+    # Find the first one that starts with 'Main'
+    for cc in cost_centers:
+        cc_name = cc["name"]
+        if cc_name.upper().startswith("MAIN"):
+            print(f"-------------------Matched: {cc_name}")
+            return cc_name
+
+    return None
