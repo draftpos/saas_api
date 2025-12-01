@@ -856,6 +856,7 @@ def login(usr, pwd, timezone):
     default_warehouse = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
     default_cost_center = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
     default_customer = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Customer", "is_default": 1}, "for_value")
+    default_company = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Company", "is_default": 1}, "for_value")
 
     # Warehouse items
     warehouse_items = []
@@ -893,6 +894,7 @@ def login(usr, pwd, timezone):
         "email": user.email or "",
         "warehouse": default_warehouse,
         "cost_center": default_cost_center,
+        "company":default_company,
         "default_customer": default_customer,
         "customers": customers,
         "warehouse_items": warehouse_items,
