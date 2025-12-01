@@ -985,7 +985,7 @@ def create_sales_invoice():
 @frappe.whitelist()
 def get_my_product_bundles():
     user = frappe.session.user
-    frappe.log_error(f"User: {user}", "DEBUG get_my_product_bundles")
+    frappe.log_error(f"User: {user}", "DEBUG get_my_product_bundles.")
 
     if user == "Guest":
         return {"error": "You must be logged in"}
