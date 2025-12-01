@@ -1000,7 +1000,7 @@ def get_my_product_bundles():
         items = frappe.get_all(
             "Product Bundle Item",
             filters={"parent": b.name},
-            fields=["item_code", "item_name","qty"]
+            fields=["item_code", "rate","qty","uom"]
         )
         b["items"] = items
 
@@ -1719,7 +1719,6 @@ def verify_email(email, verification_code):
             status=400,
             message=str(e)
         )
-
 
 @frappe.whitelist(allow_guest=True)
 def create_user(email, password, first_name, last_name=None, full_name=None, pin=None, phone_number=None):
