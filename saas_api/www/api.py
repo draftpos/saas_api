@@ -976,60 +976,6 @@ def create_sales_invoice():
         frappe.log_error(frappe.get_traceback(), "Sales Invoice Creation Error")
         return {"status": "error", "message": str(e)}
 
-
-
-@frappe.whitelist()
-def create_customer(
-    customer_name,
-    custom_trade_name=None,
-    custom_customer_tin=None,
-    custom_customer_vat=None,
-    custom_customer_address=None,
-    custom_telephone_number=None,
-    custom_province=None,
-    custom_street=None,
-    custom_city=None,
-    custom_house_no=None,
-    custom_email_address=None,
-    customer_type="Individual",
-    default_price_list=None,
-    default_cost_center=None,
-    default_warehouse=None
-
-):
-    try:
-        if not default_price_list:
-            frappe.throw("Price List is required for this customer.")
-        customer = frappe.get_doc({
-            "doctype": "Customer",
-            "customer_name": customer_name,
-            "customer_type": customer_type,
-            "custom_trade_name": custom_trade_name,
-            "custom_customer_tin": custom_customer_tin,
-            "custom_customer_vat": custom_customer_vat,
-            "custom_customer_address": custom_customer_address,
-            "custom_telephone_number": custom_telephone_number,
-            "custom_province": custom_province,
-            "custom_street": custom_street,
-            "custom_city": custom_city,
-            "custom_house_no": custom_house_no,
-            "custom_email_address": custom_email_address,
-            "default_price_list":default_price_list,
-            "custom_cost_center": default_cost_center,
-            "custom_warehouse": default_warehouse
-        })
-        # Ignore permission restrictions
-        customer.insert(ignore_permissions=True)
-        frappe.db.commit()
-
-        frappe.logger().info(f"✅ Customer created: {customer.name}")
-        return {"customer_id": customer.name}
-
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Create Customer Error")
-        return {"error": str(e)}
-
-
 @frappe.whitelist()
 def get_my_product_bundles():
     user = frappe.session.user
@@ -1054,4 +1000,63 @@ def get_my_product_bundles():
 
     frappe.log_error(f"Bundles found: {len(bundles)}", "DEBUG get_my_product_bundles")
     return bundles
+ 
+@frappe.whitelist()
+def payment_entry(party, amount, mode_of_payment, reference_doctype=None, reference_name=None):
+    if not party:
+        frappe.throw("Party (customer) is required.")
 
+    invoice = None
+
+    # Use reference from payload if given
+    if reference_doctype and reference_name:
+        invoice = frappe.get_doc(reference_doctype, reference_name)
+
+    # Otherwise, get last outstanding invoice
+    if not invoice:
+        last_invoice = frappe.get_list(
+            "Sales Invoice",
+            filters={"customer": party, "outstanding_amount": (">", 0)},
+            fields=["name", "outstanding_amount"],
+            order_by="posting_date desc, creation desc",
+            limit=1
+        )
+
+        if last_invoice:
+            invoice = frappe.get_doc("Sales Invoice", last_invoice[0].name)
+
+    # Create Payment Entry
+    pe = frappe.new_doc("Payment Entry")
+    pe.payment_type = "Receive"
+    pe.party_type = "Customer"
+    pe.party = party
+    pe.paid_amount = amount
+    pe.received_amount = amount
+    pe.mode_of_payment = mode_of_payment
+
+    # ⚡ Ignore permissions for everything below
+    frappe.flags.ignore_permissions = True
+
+    # Setup accounts etc.
+    pe.setup_party_account_field()
+    pe.set_missing_values()
+
+    # Allocate to invoice if found
+    if invoice:
+        pe.append("references", {
+            "reference_doctype": "Sales Invoice",
+            "reference_name": invoice.name,
+            "allocated_amount": min(amount, invoice.outstanding_amount)
+        })
+
+    # Submit the Payment Entry
+    pe.submit()
+
+    # Reset ignore permissions
+    frappe.flags.ignore_permissions = False
+
+    return {
+        "payment_entry": pe.name,
+        "credited_invoice": invoice.name if invoice else None,
+        "type": "Advance" if not invoice else "Invoice Payment"
+    }
