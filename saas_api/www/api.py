@@ -13,6 +13,10 @@ import base64
 from .utils import create_response, check_user_has_company
 from tzlocal import get_localzone
 import pytz
+from frappe.utils.data import flt
+from frappe.utils import cint
+from frappe.utils import flt, today, add_days
+
 
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
@@ -1216,3 +1220,276 @@ def default_cost_center(company):
             return cc_name
 
     return None
+
+
+@frappe.whitelist(allow_guest=True)
+def get_sales_invoice_report():
+    """
+    Returns a summary of Sales Invoices with optional filters.
+    Expects JSON payload with:
+    {
+        "created_by": "user@example.com",
+        "from_date": "2025-01-01",
+        "to_date": "2025-01-31",
+        "company": "Saas Company (Demo)"
+    }
+    """
+
+    try:
+        data = json.loads(frappe.request.data)  # Parse JSON payload
+    except Exception:
+        return {"status": "error", "message": "Invalid JSON payload"}
+
+    created_by = data.get("created_by")
+    from_date = data.get("from_date")
+    to_date = data.get("to_date")
+    company = data.get("company")
+
+    if not company:
+        return {"status": "error", "message": "company is required"}
+
+    filters = {}
+
+    if created_by:
+        filters["owner"] = created_by
+    if from_date and to_date:
+        filters["creation"] = ["between", [from_date, to_date]]
+    elif from_date:
+        filters["creation"] = [">=", from_date]
+    elif to_date:
+        filters["creation"] = ["<=", to_date]
+    filters["company"] = company
+
+    # Fetch invoices
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=filters,
+        fields=["name", "customer", "grand_total", "creation", "owner", "company"],
+        order_by="creation desc"
+    )
+
+    total_count = len(invoices)
+    total_amount = sum([flt(inv.get("grand_total") or 0) for inv in invoices])
+
+    return {
+        "status": "success",
+        "total_count": total_count,
+        "total_amount": total_amount,
+    }
+@frappe.whitelist(allow_guest=True)
+def calculate_and_store_profit_and_loss():
+    # Default dates: yesterday to today
+    to_date = today()
+    from_date = add_days(to_date, -1)
+
+    # Get all companies
+    companies = frappe.get_all("Company", pluck="name")
+
+    for company in companies:
+        # Get all cost centers for this company
+        cost_centers = frappe.get_all("Cost Center", filters={"company": company}, pluck="name")
+        cost_centers.append(None)  # Include total for the whole company
+
+        for cc in cost_centers:
+            filters = ["company=%s"]
+            values = [company]
+
+            filters.append("posting_date >= %s")
+            values.append(from_date)
+            filters.append("posting_date <= %s")
+            values.append(to_date)
+
+            if cc:
+                filters.append("cost_center=%s")
+                values.append(cc)
+
+            where_clause = " AND ".join(filters)
+
+            # Total Income
+            income_total = frappe.db.sql(f"""
+                SELECT SUM(credit - debit) as total_income
+                FROM `tabGL Entry`
+                WHERE {where_clause} AND account IN (
+                    SELECT name FROM `tabAccount` WHERE root_type='Income'
+                )
+            """, tuple(values), as_dict=1)[0]["total_income"] or 0
+
+            # Total Expense
+            expense_total = frappe.db.sql(f"""
+                SELECT SUM(debit - credit) as total_expense
+                FROM `tabGL Entry`
+                WHERE {where_clause} AND account IN (
+                    SELECT name FROM `tabAccount` WHERE root_type='Expense'
+                )
+            """, tuple(values), as_dict=1)[0]["total_expense"] or 0
+
+            gross_profit_loss = flt(income_total) - flt(expense_total)
+
+            # Create / insert record in Profit and Loss per Cost Center
+            pl_doc = frappe.get_doc({
+                "doctype": "Profit and Loss per Cost Center",
+                "company": company,
+                "cost_center": cc or "All",
+                "income": flt(income_total),
+                "expense": flt(expense_total),
+                "gross_profit__loss": gross_profit_loss,
+                "date": to_date
+            })
+
+            pl_doc.flags.ignore_permissions = True
+            pl_doc.insert()
+            frappe.db.commit()
+
+    return {"status": "success", "message": "Profit and Loss per Cost Center calculated and stored."}
+
+@frappe.whitelist()
+def get_pl_cost_center(company, cost_center=None):
+    """
+    Fetch Profit and Loss values from `Profit and Loss per Cost Center` doctype.
+    Filters by company and optional cost center.
+    """
+
+    if not company:
+        frappe.throw("Company is required")
+
+    filters = {"company": company}
+
+    if cost_center:
+        filters["cost_center"] = cost_center
+
+    doc = frappe.get_all(
+        "Profit and Loss per Cost Center",
+        filters=filters,
+        fields=[
+            "company",
+            "cost_center",
+            "income",
+            "expense",
+            "gross_profit__loss",
+            "date"
+        ],
+        limit_page_length=1,
+    )
+
+    if not doc:
+        return {"error": "No data found for given filters"}
+
+    return doc[0]
+
+
+@frappe.whitelist()
+def get_sales_invoice(user=None):
+    try:
+        final_invoice = []
+        # Return all invoices if user is Administrator, else filter by user
+        filters = {} if user == "Administrator" else {"owner": user} if user else {}
+        
+        sales_invoice_list = frappe.get_all("Sales Invoice", 
+            filters=filters,
+            fields=[
+                "name", "customer", "company", "customer_name",
+                "posting_date", "posting_time", "due_date",
+                "total_qty", "total", "total_taxes_and_charges",
+                "grand_total", "owner", "modified_by"
+            ])
+        
+        for invoice in sales_invoice_list:
+            items = frappe.get_all("Sales Invoice Item", 
+                filters={"parent": invoice.name},
+                fields=["item_name", "qty", "rate", "amount"])
+                
+            invoice = {
+                "name": invoice.name,
+                "customer": invoice.customer,
+                "company": invoice.company,
+                "customer_name": invoice.customer_name,
+                "posting_date": invoice.posting_date,
+                "posting_time": invoice.posting_time,
+                "due_date": invoice.due_date,
+                "items": items,
+                "total_qty": invoice.total_qty,
+                "total": invoice.total,
+                "total_taxes_and_charges": invoice.total_taxes_and_charges,
+                "grand_total": invoice.grand_total,
+                "created_by": invoice.owner,
+                "last_modified_by": invoice.modified_by
+            }
+            final_invoice.append(invoice)
+            
+        create_response("200", final_invoice)
+        return
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(message=str(e), title="Error fetching sales invoice data")
+        return
+
+
+@frappe.whitelist()
+def get_customers():
+    try:
+        # Get default cost center for the logged-in user
+        default_cost_center = frappe.db.get_value(
+            "User Permission", 
+            {"user": frappe.session.user, "allow": "Cost Center", "is_default": 1}, 
+            "for_value"
+        )       
+
+        # Fetch customer details with a default price list
+        customers = frappe.get_all(
+            "Customer",
+            filters={
+                "custom_cost_center": default_cost_center,
+                "default_price_list": ["!=", ""]
+            },
+            fields=[
+                "customer_name",
+                "customer_type",
+                "custom_cost_center",
+                "custom_warehouse",
+                "gender",
+                "customer_pos_id",
+                "default_price_list"
+            ]
+        )
+
+        # Fetch item prices for each customer
+        for customer in customers:
+            customer["items"] = frappe.get_all(
+                "Item Price",
+                filters={"price_list": customer["default_price_list"]},
+                fields=["item_code", "item_name", "price_list_rate"]
+            )
+
+        create_response("200", customers)
+        return
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(message=str(e), title="Error fetching customer data")
+        return
+
+
+@frappe.whitelist()
+def get_my_product_bundles():
+    user = frappe.session.user
+    frappe.log_error(f"User: {user}", "DEBUG get_my_product_bundles")
+
+    if user == "Guest":
+        return {"error": "You must be logged in"}
+
+    bundles = frappe.get_all(
+        "Product Bundle",
+        filters={"owner": user},
+        fields=["name", "new_item_code", "description", "creation"]
+    )
+
+    for b in bundles:
+        items = frappe.get_all(
+            "Product Bundle Item",
+            filters={"parent": b.name},
+            fields=["item_code", "item_name","qty"]
+        )
+        b["items"] = items
+
+    frappe.log_error(f"Bundles found: {len(bundles)}", "DEBUG get_my_product_bundles")
+    return bundles
