@@ -1136,22 +1136,6 @@ def get_user_data():
                 ignore_permissions=True
             )
 
-        # Company registration
-        company_registration = frappe.db.sql("""
-            SELECT name, organization_name, status, company, industry, country, city, 
-                company_status, subscription, days_left
-            FROM `tabCompany Registration`
-            WHERE user_created = %(user)s
-            OR name IN (
-                SELECT reference_name
-                FROM `tabToDo`
-                WHERE reference_type = 'Company Registration'
-                AND allocated_to = %(user)s
-            )
-        """, {"user": usr}, as_dict=True)
-
-        has_company = bool(company_registration)
-        company_message = None if has_company else "You need to register your company to access all features."
 
         frappe.response["user"] = {
             "first_name": escape_html(user.first_name or ""),
@@ -1167,10 +1151,6 @@ def get_user_data():
             "default_customer": default_customer,
             "customers": customers,
             "warehouse_items": warehouse_items,
-            "company": company_registration[0].get("company") if company_registration else None,
-            "has_company_registration": has_company,
-            "company_registration": company_registration[0] if company_registration else None,
-            "company_message": company_message,
             "role": user.get("role_select") or "",
             "pin": user.get("pin")
         }
@@ -1469,33 +1449,6 @@ def get_customers():
         create_response("417", {"error": str(e)})
         frappe.log_error(message=str(e), title="Error fetching customer data")
         return
-
-
-@frappe.whitelist()
-def get_my_product_bundles():
-    user = frappe.session.user
-    frappe.log_error(f"User: {user}", "DEBUG get_my_product_bundles")
-
-    if user == "Guest":
-        return {"error": "You must be logged in"}
-
-    bundles = frappe.get_all(
-        "Product Bundle",
-        filters={"owner": user},
-        fields=["name", "new_item_code", "description", "creation"]
-    )
-
-    for b in bundles:
-        items = frappe.get_all(
-            "Product Bundle Item",
-            filters={"parent": b.name},
-            fields=["item_code", "item_name","qty"]
-        )
-        b["items"] = items
-
-    frappe.log_error(f"Bundles found: {len(bundles)}", "DEBUG get_my_product_bundles")
-    return bundles
-
 
 @frappe.whitelist(allow_guest=True)
 def edit_user(email, first_name=None, last_name=None, full_name=None, password=None, pin=None,phone_number=None,user_status=None,role_select=None):
