@@ -717,7 +717,6 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
                 "rate",
                 "amount",
                 "uom",
-                "simple_code"
             ],
             order_by="idx asc",
         )
