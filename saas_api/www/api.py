@@ -597,8 +597,7 @@ def get_quotations(limit=20, start=0, status=None):
                 "qty",
                 "rate",
                 "amount",
-                "uom",
-                "simple_code"
+                "uom"
             ],
             order_by="idx asc",
         )
