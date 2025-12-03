@@ -76,7 +76,6 @@ def generate_supplier_code():
         next_num += 1
         random_letters = ''.join(random.choices(string.ascii_uppercase, k=5))
         new_code = f"{prefix}{random_letters}-{next_num:03d}"
-
     return new_code
 
 
@@ -769,48 +768,69 @@ def get_account():
 
 @frappe.whitelist()
 def get_customer_balance(customer, company=None):
-    # 1️⃣ Check if customer exists
-    if not frappe.db.exists("Customer", customer):
-        frappe.throw(f"Customer '{customer}' does not exist.")
+    try:
+        # 1️⃣ Check if customer exists
+        if not frappe.db.exists("Customer", customer):
+            return {
+                "status": "error",
+                "message": f"Customer '{customer}' does not exist."
+            }
 
-    # 2️⃣ Get company from user permissions if not provided
-    if not company:
-        user = frappe.session.user
-        permissions = frappe.get_all(
-            "User Permission",
-            filters={"user": user, "allow": "Company"},
-            fields=["for_value", "is_default"]
-        )
+        # 2️⃣ Get company from user permissions if not provided
+        if not company:
+            user = frappe.session.user
 
-        default_company = None
-        for perm in permissions:
-            if perm.get("is_default"):
-                default_company = perm.get("for_value")
-                break
+            permissions = frappe.get_all(
+                "User Permission",
+                filters={"user": user, "allow": "Company"},
+                fields=["for_value", "is_default"]
+            )
 
-        if not default_company and permissions:
-            default_company = permissions[0].get("for_value")
+            default_company = None
 
-        company = default_company
+            # Get the default company if marked as default
+            for perm in permissions:
+                if perm.get("is_default"):
+                    default_company = perm.get("for_value")
+                    break
 
-    if not company:
-        frappe.throw("No default Company found for the logged-in user.")
+            # If still nothing, pick the first company
+            if not default_company and permissions:
+                default_company = permissions[0].get("for_value")
 
-    # 3️⃣ Fetch balance
-    result = frappe.db.sql("""
-        SELECT SUM(debit) - SUM(credit)
-        FROM `tabGL Entry`
-        WHERE party_type = 'Customer'
-          AND party = %s
-          AND company = %s
-    """, (customer, company))
+            company = default_company
 
-    # If no GL entries exist, result[0][0] is None
-    balance = result[0][0]
-    if balance is None:
-        return (f"No GL entries found for customer '{customer}' in company '{company}'.")
+        if not company:
+            return {
+                "status": "error",
+                "message": "No default Company found for the logged-in user."
+            }
 
-    return balance
+        # 3️⃣ Fetch balance
+        result = frappe.db.sql("""
+            SELECT SUM(debit) - SUM(credit)
+            FROM `tabGL Entry`
+            WHERE party_type = 'Customer'
+            AND party = %s
+            AND company = %s
+        """, (customer, company))
+
+        balance = result[0][0] or 0
+
+        return {
+            "status": "success",
+            "customer": customer,
+            "company": company,
+            "balance": balance
+        }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "get_customer_balance error")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 
 def generate_keys(user):
     api_secret = api_key = ''
@@ -1405,7 +1425,6 @@ def get_sales_invoice(user=None):
         frappe.log_error(message=str(e), title="Error fetching sales invoice data")
         return
 
-
 @frappe.whitelist()
 def get_customers():
     try:
@@ -1414,9 +1433,9 @@ def get_customers():
             "User Permission", 
             {"user": frappe.session.user, "allow": "Cost Center", "is_default": 1}, 
             "for_value"
-        )       
+        )
 
-        # Fetch customer details with a default price list
+        # Fetch customers with default price list
         customers = frappe.get_all(
             "Customer",
             filters={
@@ -1424,6 +1443,7 @@ def get_customers():
                 "default_price_list": ["!=", ""]
             },
             fields=[
+                "name",
                 "customer_name",
                 "customer_type",
                 "custom_cost_center",
@@ -1434,13 +1454,18 @@ def get_customers():
             ]
         )
 
-        # Fetch item prices for each customer
+        # Loop through customers
         for customer in customers:
+            customer["balance"] = get_customer_balance(customer["name"])
+            # 1️⃣ Get item prices
             customer["items"] = frappe.get_all(
                 "Item Price",
                 filters={"price_list": customer["default_price_list"]},
                 fields=["item_code", "item_name", "price_list_rate"]
             )
+
+            # 2️⃣ Get balance safely
+          
 
         create_response("200", customers)
         return
