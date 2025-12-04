@@ -1840,3 +1840,54 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
             message=str(e)
         )
         return
+@frappe.whitelist()
+def get_currencies_with_exchange_involvement():
+    try:
+        # All currencies appearing as FROM
+        from_currencies = frappe.get_all(
+            "Currency Exchange",
+            pluck="from_currency"
+        )
+
+        # All currencies appearing as TO
+        to_currencies = frappe.get_all(
+            "Currency Exchange",
+            pluck="to_currency"
+        )
+
+        # Merge unique currencies
+        currencies = list(set(from_currencies + to_currencies))
+
+        result = []
+
+        for currency in currencies:
+            # Get all rates where currency is the FROM
+            rates = frappe.get_all(
+                "Currency Exchange",
+                filters={"from_currency": currency},
+                fields=["to_currency", "exchange_rate", "date"]
+            )
+
+            # Format
+            result.append({
+                "currency": currency,
+                "exchange_rates": [
+                    {
+                        "to": r["to_currency"],
+                        "rate": r["exchange_rate"],
+                        "date": r["date"]
+                    }
+                    for r in rates
+                ]
+            })
+
+        create_response("200", {
+            "count": len(result),
+            "currencies": result
+        })
+        return
+
+    except Exception as e:
+        frappe.log_error(message=str(e), title="Error fetching involved currency rates")
+        create_response("417", {"error": str(e)})
+        return
