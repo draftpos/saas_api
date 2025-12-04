@@ -19,7 +19,6 @@ import re
 from frappe.utils import validate_email_address
 from frappe.utils import flt, today, add_days
 
-
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
     prefix = "HA-"
@@ -1155,51 +1154,40 @@ def payment_entry(party, amount, mode_of_payment, reference_doctype=None, refere
         "type": "Advance" if not invoice else "Invoice Payment"
     }
 
+@frappe.whitelist(allow_guest=False)
+def get_user_data(user=None):
+    """
+    Fetch user info along with defaults for warehouse, cost center, company, and linked customers/items.
+    """
+    if not user:
+        user = frappe.session.user
 
-@frappe.whitelist(allow_guest=True)
-def get_user_data():
-    """
-    Accepts JSON with { "user": "email@example.com" } 
-    and returns the same data normally returned after login.
-    """
     try:
-        data = json.loads(frappe.request.data or "{}")
-        usr = data.get("user")
-        timezone = data.get("timezone") or str(get_localzone())
+        user_doc = frappe.get_doc("User", user)
 
-        if not usr:
-            frappe.local.response["http_status_code"] = 400
-            return {"status": "error", "message": "Missing 'user' in request JSON"}
-
-        # Validate user exists
-        if not frappe.db.exists("User", usr):
-            frappe.local.response["http_status_code"] = 404
-            return {"status": "error", "message": f"User '{usr}' not found"}
-
-        user = frappe.get_doc("User", usr)
-
-        # Just generate static API token for demonstration
-        api_generate = generate_keys(user)
-        token_string = f"{api_generate['api_key']}:{api_generate['api_secret']}"
-
-        # Get user permissions for warehouse and cost center
-        warehouses = frappe.get_list("User Permission",
-            filters={"user": user.name, "allow": "Warehouse"},
-            pluck="for_value", ignore_permissions=True
+        # Fetch default permissions
+        default_warehouse = frappe.db.get_value(
+            "User Permission",
+            {"user": user_doc.name, "allow": "Warehouse", "is_default": 1},
+            "for_value"
         )
-        cost_centers = frappe.get_list("User Permission",
-            filters={"user": user.name, "allow": "Cost Center"},
-            pluck="for_value", ignore_permissions=True
+        default_cost_center = frappe.db.get_value(
+            "User Permission",
+            {"user": user_doc.name, "allow": "Cost Center", "is_default": 1},
+            "for_value"
+        )
+        default_customer = frappe.db.get_value(
+            "User Permission",
+            {"user": user_doc.name, "allow": "Customer", "is_default": 1},
+            "for_value"
+        )
+        default_company = frappe.db.get_value(
+            "User Permission",
+            {"user": user_doc.name, "allow": "Company", "is_default": 1},
+            "for_value"
         )
 
-        default_warehouse = frappe.db.get_value("User Permission",
-            {"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
-        default_cost_center = frappe.db.get_value("User Permission",
-            {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
-        default_customer = frappe.db.get_value("User Permission",
-            {"user": user.name, "allow": "Customer", "is_default": 1}, "for_value")
-
-        # Get warehouse items
+        # Warehouse items
         warehouse_items = []
         if default_warehouse:
             warehouse_items = frappe.db.sql("""
@@ -1218,50 +1206,37 @@ def get_user_data():
         # Customers linked to cost center
         customers = []
         if default_cost_center:
-            customers = frappe.get_list("Customer",
+            customers = frappe.get_list(
+                "Customer",
                 filters={"custom_cost_center": default_cost_center},
                 fields=["name", "customer_name", "customer_group", "territory", "custom_cost_center"],
                 ignore_permissions=True
             )
 
-        frappe.response["user"] = {
-            "first_name": escape_html(user.first_name or ""),
-            "last_name": escape_html(user.last_name or ""),
-            "gender": escape_html(user.gender or "") or "",
-            "birth_date": user.birth_date or "",
-            "mobile_no": user.mobile_no or "",
-            "username": user.username or "",
-            "full_name": user.full_name or "",
-            "email": user.email or "",
-            "warehouse": default_warehouse,
-            "cost_center": default_cost_center,
-            "default_customer": default_customer,
-            "customers": customers,
-            "warehouse_items": warehouse_items,
-            "role": user.get("role_select") or "",
-            "pin": user.get("pin")
+        return {
+            "status": "success",
+            "user": {
+                "first_name": user_doc.first_name,
+                "last_name": user_doc.last_name,
+                "gender": user_doc.gender,
+                "birth_date": user_doc.birth_date,
+                "mobile_no": user_doc.mobile_no,
+                "username": user_doc.username,
+                "full_name": user_doc.full_name,
+                "email": user_doc.email,
+                "warehouse": default_warehouse,
+                "cost_center": default_cost_center,
+                "company": default_company,
+                "default_customer": default_customer,
+                "customers": customers,
+                "warehouse_items": warehouse_items,
+                "role": user_doc.get("role_select") or "",
+                "pin": user_doc.get("pin")
+            }
         }
 
-        frappe.response["token_string"] = token_string
-        frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
-
-        if not has_company:
-            frappe.response["help"] = {
-                "endpoint": "/api/method/havano_company.apis.company.register_company",
-                "required_fields": ["user_email", "organization_name"],
-                "message": "Please register your company to access all features",
-                "example": {
-                    "user_email": user.email,
-                    "organization_name": "Your Company Name",
-                    "industry": "Retail grocery"
-                }
-            }
-
-        return frappe.response
-
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "get_user_data API Error")
-        frappe.local.response["http_status_code"] = 500
+        frappe.log_error(message=traceback.format_exc(), title="Get User Data API Error")
         return {"status": "error", "message": str(e)}
 
 
