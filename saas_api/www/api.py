@@ -926,7 +926,7 @@ def login(usr, pwd, timezone):
         "customers": customers,
         "warehouse_items": warehouse_items,
         "time_zone": {"client": local_tz, "server": erpnext_tz},
-        "role": user.get("role_select") or "",
+        "role": user.get("role_select"),
         "pin": user.get("pin")
     }
 
