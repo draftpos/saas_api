@@ -330,12 +330,19 @@ def create_customer(
     custom_city=None,
     custom_house_no=None,
     custom_email_address=None,
+    default_warehouse=None,
     customer_type="Individual",
-    price_list=None  # New parameter
+    default_price_list=None,
+    default_cost_center=None,
+
 ):
     try:
-        if not price_list:
+        if not default_price_list:
             frappe.throw("Price List is required for this customer.")
+        if not default_cost_center:
+            frappe.throw("Cost center is required for this customer.")
+        if not default_warehouse:
+            frappe.throw("Warehouse is required for this customer.")
         customer = frappe.get_doc({
             "doctype": "Customer",
             "customer_name": customer_name,
@@ -349,7 +356,10 @@ def create_customer(
             "custom_street": custom_street,
             "custom_city": custom_city,
             "custom_house_no": custom_house_no,
-            "custom_email_address": custom_email_address
+            "custom_email_address": custom_email_address,
+            "custom_warehouse": default_warehouse,
+            "custom_cost_center": default_cost_center,
+            "default_price_list": default_price_list,
         })
 
         # Ignore permission restrictions
@@ -925,81 +935,139 @@ def login(usr, pwd, timezone):
     frappe.response["token"] = base64.b64encode(token_string.encode("ascii")).decode("utf-8")
     return
 
+# @frappe.whitelist()
+# def create_sales_invoice():
+#     invoice_data = frappe.local.form_dict
+#     user = frappe.session.user
 
-@frappe.whitelist()
-def create_sales_invoice():
-    invoice_data = frappe.local.form_dict
+#     def get_user_default(fieldname):
+#         value = invoice_data.get(fieldname)
+#         if not value:
+#             value = frappe.defaults.get_user_default(fieldname, user)
+#         if not value:
+#             value = frappe.db.get_value("User", user, fieldname)
+#         if not value:
+#             frappe.throw(f"{fieldname.replace('_',' ').title()} not provided and no default found for user")
+#         return value
 
-    try:
-        # Helper function to get default for user if not provided
-        def get_user_default(user, fieldname):
-            value = invoice_data.get(fieldname)
-            if not value:
-                # Try from User Defaults
-                value = frappe.defaults.get_user_default(fieldname, user)
-            if not value:
-                # Try from User Doc fields directly
-                value = frappe.db.get_value("User", user, fieldname)
-            if not value:
-                frappe.throw(f"{fieldname.replace('_',' ').title()} not provided and no default found for user")
-            return value
+#     company = get_user_default("company")
+#     customer = get_user_default("customer")
+#     cost_center = get_user_default("cost_center")
+#     warehouse = get_user_default("set_warehouse")
+#     print(f"{company}, {customer}, {cost_center}, {warehouse}")
 
+#     si_doc = frappe.get_doc({
+#         "doctype": "Sales Invoice",
+#         "customer": customer,
+#         "company": company,
+#         "currency": "USD",  # make sure this matches your default_currency or price list
+#         "conversion_rate": 1.0,  # if USD to USD, else fetch correct rate
+#         "set_warehouse": warehouse,
+#         "cost_center": cost_center,
+#         "update_stock": invoice_data.get("update_stock", 1),
+#         "posting_date": invoice_data.get("posting_date") or frappe.utils.nowdate(),
+#         "posting_time": invoice_data.get("posting_time") or frappe.utils.nowtime(),
+#         # "custom_sales_reference": invoice_data.get("custom_sales_reference"),
+#         "taxes_and_charges": invoice_data.get("taxes_and_charges"),
+#         "payments": invoice_data.get("payments", []),
+#         "items": [
+#             {
+#                 "item_name": item.get("item_name"),
+#                 "item_code": item.get("item_code"),
+#                 "rate": item.get("rate"),
+#                 "qty": item.get("qty"),
+#                 "cost_center": item.get("cost_center") or cost_center
+#             } for item in invoice_data.get("items", [])
+#         ]
+#     })
+
+
+#     si_doc.insert()
+#     a=si_doc.submit()
+#     return a
+import frappe
+import json
+import frappe
+import json
+import traceback
+import frappe
+import json
+import traceback
+
+
+@frappe.whitelist(allow_guest=False)
+def create_invoice(customer=None, items=None, posting_date=None,company=None, due_date=None,
+                   cost_center=None,warehouse=None, update_stock=None, set_warehouse=None):
+    """
+    Create a Sales Invoice with safe default handling.
+    If required fields are not provided, it tries to fetch from user defaults.
+    """
+    if not items:
+        frappe.throw("Invoice items must be provided.")
+
+    # Convert items if passed as string
+    if isinstance(items, str):
+        items = json.loads(items)
+    user = frappe.session.user
+    print(f"user: {user}")
+   
+    def get_user_default(fieldname):
+        """
+        Loop through User Permissions and return the default value
+        for the given fieldname for the current user.
+        """
         user = frappe.session.user
 
-        # Resolve missing fields from defaults
-        company = get_user_default(user, "company")
-        cost_center = get_user_default(user, "cost_center")
-        warehouse = get_user_default(user, "set_warehouse")
-        customer = get_user_default(user, "customer")
+        # Get all user permissions for this user
+        perms = frappe.get_all(
+            "User Permission",
+            filters={"user": user, "allow": fieldname},
+            fields=["for_value", "is_default"]
+        )
+        if not perms:
+            frappe.throw(
+                f"No user permissions found for '{fieldname}' for user {user}. "
+                f"Please set a default in User Permissions."
+            )
 
-        si_doc = frappe.get_doc({
+        # Find the one marked as default
+        for p in perms:
+            if p.get("is_default"):
+                return p.get("for_value")
+
+        # If none is default, just return the first one (optional)
+        return perms[0].get("for_value")
+    if not customer:
+        customer = get_user_default("Customer")
+    if not company:
+        company = get_user_default("Company")
+    if not cost_center:
+        cost_center = get_user_default("Cost Center")
+    if not warehouse:
+        warehouse = get_user_default("Warehouse")
+    # Default posting/due dates
+    if not posting_date:
+        posting_date = frappe.utils.today()
+    if not due_date:
+        due_date = posting_date
+    try:
+        invoice = frappe.get_doc({
             "doctype": "Sales Invoice",
             "customer": customer,
             "company": company,
-            "set_warehouse": warehouse,
+            "posting_date": posting_date,
+            "due_date": due_date,
             "cost_center": cost_center,
-            "update_stock": invoice_data.get("update_stock", 1),
-            "posting_date": invoice_data.get("posting_date") or frappe.utils.nowdate(),
-            "posting_time": invoice_data.get("posting_time") or frappe.utils.nowtime(),
-            "custom_sales_reference": invoice_data.get("custom_sales_reference"),
-            "taxes_and_charges": invoice_data.get("taxes_and_charges"),
-            "payments": invoice_data.get("payments", []),
-            "items": [
-                {
-                    "item_name": item.get("item_name"),
-                    "item_code": item.get("item_code"),
-                    "rate": item.get("rate"),
-                    "qty": item.get("qty"),
-                    "cost_center": item.get("cost_center") or cost_center
-                } for item in invoice_data.get("items", [])
-            ]
+            "update_stock": update_stock,
+            "set_warehouse": warehouse,
+            "items": items
         })
-
-        # Insert ignoring permissions
-        si_doc.insert()
-
-        # Temporarily ignore permissions for submission
-        frappe.flags.ignore_permissions = True
-        si_doc.submit()
-        frappe.flags.ignore_permissions = False
-
-        # Reload to get updated docstatus
-        si_doc.reload()
-
-        return {
-            "status": "success",
-            "message": "Sales Invoice created and submitted successfully",
-            "invoice_name": si_doc.name,
-            "docstatus": si_doc.docstatus,
-            "created_by": si_doc.owner,
-            "created_on": si_doc.creation
-        }
-
-    except frappe.ValidationError as ve:
-        return {"status": "error", "message": str(ve)}
-
+        invoice.insert()
+        invoice.submit()
+        frappe.db.commit()
+        return {"status": "success", "invoice_name": invoice.name}
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Sales Invoice Creation Error")
+        frappe.log_error(message=traceback.format_exc(), title="Create Invoice API Error")
         return {"status": "error", "message": str(e)}
 
 @frappe.whitelist()
@@ -1433,12 +1501,23 @@ def get_customers():
             {"user": frappe.session.user, "allow": "Cost Center", "is_default": 1}, 
             "for_value"
         )
+        if not default_cost_center:
+            return create_response("400", {"error": "No default Cost Center found for the user."})
+        default_warehouse = frappe.db.get_value(
+            "User Permission", 
+            {"user": frappe.session.user, "allow": "Warehouse", "is_default": 1}, 
+            "for_value"
+        )
+        if not default_warehouse:
+            return create_response("400", {"error": "No default Warehouse found for the user."})
+
 
         # Fetch customers with default price list
         customers = frappe.get_all(
             "Customer",
             filters={
                 "custom_cost_center": default_cost_center,
+                "custom_warehouse": default_warehouse,
                 "default_price_list": ["!=", ""]
             },
             fields=[
@@ -1452,19 +1531,14 @@ def get_customers():
                 "default_price_list"
             ]
         )
-
-        # Loop through customers
         for customer in customers:
             customer["balance"] = get_customer_balance(customer["name"])
-            # 1️⃣ Get item prices
             customer["items"] = frappe.get_all(
                 "Item Price",
                 filters={"price_list": customer["default_price_list"]},
                 fields=["item_code", "item_name", "price_list_rate"]
             )
 
-            # 2️⃣ Get balance safely
-          
 
         create_response("200", customers)
         return
