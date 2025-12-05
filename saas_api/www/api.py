@@ -373,7 +373,7 @@ def create_customer(
         return {"error": str(e)}
 
 @frappe.whitelist()
-def create_quotation(customer, items,reference_number):
+def create_quotation(customer, items,reference_number,cost_center):
     try:
         if isinstance(items, str):
             items = frappe.parse_json(items)
@@ -381,6 +381,8 @@ def create_quotation(customer, items,reference_number):
         if not reference_number:
             frappe.throw("Reference Number is required.")
 
+        if not cost_center:
+            frappe.throw("Cost Center Number is required.")
 
         doc = frappe.new_doc("Quotation")
         doc.customer = customer
@@ -388,6 +390,7 @@ def create_quotation(customer, items,reference_number):
         doc.conversion_rate = 1
         doc.selling_price_list = "Standard Selling"
         doc.reference_number=reference_number
+        doc.cost_center=cost_center
 
         for it in items:
             doc.append("items", {
@@ -1041,7 +1044,7 @@ def create_invoice(customer=None, items=None, posting_date=None,company=None, du
     if not company:
         company = get_user_default("Company")
     if not cost_center:
-        cost_center = get_user_default("Cost Center")
+       return "Cost Center is Mandatory"
     if not warehouse:
         warehouse = get_user_default("Warehouse")
     # Default posting/due dates
