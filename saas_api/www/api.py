@@ -1265,35 +1265,48 @@ def default_cost_center(company):
 
     return None
 
+import frappe
+import json
+from frappe.utils.data import flt, get_datetime
 
 @frappe.whitelist(allow_guest=True)
 def get_sales_invoice_report():
     """
     Returns a summary of Sales Invoices with optional filters.
-    Expects JSON payload with:
+    Expects JSON payload like:
     {
         "created_by": "user@example.com",
         "from_date": "2025-01-01",
         "to_date": "2025-01-31",
-        "company": "Saas Company (Demo)"
+        "company": "Saas Company (Demo)",
+        "cost_center": "Main - MEGm3@0266"
     }
     """
 
     try:
-        data = json.loads(frappe.request.data)  # Parse JSON payload
+        data = json.loads(frappe.request.data)
     except Exception:
-        return {"status": "error", "message": "Invalid JSON payload"}
+        return {"message": {"status": "error", "message": "Invalid JSON payload"}}
 
     created_by = data.get("created_by")
     from_date = data.get("from_date")
     to_date = data.get("to_date")
     company = data.get("company")
+    cost_center = data.get("cost_center")
 
     if not company:
-        return {"status": "error", "message": "company is required"}
+        return {"message": {"status": "error", "message": "company is required"}}
 
-    filters = {}
+    # Convert strings to datetime objects
+    if from_date:
+        from_date = get_datetime(from_date)
+    if to_date:
+        to_date = get_datetime(to_date)
 
+    if from_date and to_date and from_date > to_date:
+        return {"message": {"status": "error", "message": "from_date cannot be after to_date"}}
+
+    filters = {"company": company}
     if created_by:
         filters["owner"] = created_by
     if from_date and to_date:
@@ -1302,24 +1315,27 @@ def get_sales_invoice_report():
         filters["creation"] = [">=", from_date]
     elif to_date:
         filters["creation"] = ["<=", to_date]
-    filters["company"] = company
+    if cost_center:
+        filters["cost_center"] = cost_center
 
-    # Fetch invoices
+    # Only fetch grand_total to calculate totals
     invoices = frappe.get_all(
         "Sales Invoice",
         filters=filters,
-        fields=["name", "customer", "grand_total", "creation", "owner", "company"],
-        order_by="creation desc"
+        fields=["grand_total"]
     )
 
     total_count = len(invoices)
     total_amount = sum([flt(inv.get("grand_total") or 0) for inv in invoices])
 
     return {
-        "status": "success",
-        "total_count": total_count,
-        "total_amount": total_amount,
+        "message": {
+            "status": "success",
+            "total_count": total_count,
+            "total_amount": total_amount
+        }
     }
+
 @frappe.whitelist(allow_guest=True)
 def calculate_and_store_profit_and_loss():
     # Default dates: yesterday to today
@@ -1386,7 +1402,7 @@ def calculate_and_store_profit_and_loss():
 
     return {"status": "success", "message": "Profit and Loss per Cost Center calculated and stored."}
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest =True)
 def get_pl_cost_center(company, cost_center=None):
     """
     Fetch Profit and Loss values from `Profit and Loss per Cost Center` doctype.
@@ -1409,7 +1425,7 @@ def get_pl_cost_center(company, cost_center=None):
             "cost_center",
             "income",
             "expense",
-            "gross_profit__loss",
+            "gross_profit_loss",
             "date"
         ],
         limit_page_length=1,
