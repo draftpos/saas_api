@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "saas_api.install.before_install"
-# after_install = "saas_api.install.after_install"
+after_install = "saas_api.www.api.add_fields_on_install"
 
 # Uninstallation
 # ------------
@@ -204,7 +204,7 @@ app_license = "mit"
 # before_job = ["saas_api.utils.before_job"]
 # after_job = ["saas_api.utils.after_job"]
 
-# User Data Protection
+# User Data Protection 
 # --------------------
 
 # user_data_fields = [

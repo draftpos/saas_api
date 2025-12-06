@@ -18,6 +18,8 @@ from frappe.utils import cint
 import re
 from frappe.utils import validate_email_address
 from frappe.utils import flt, today, add_days
+import os
+
 
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
@@ -1910,3 +1912,153 @@ def get_currencies_with_exchange_involvement():
         frappe.log_error(message=str(e), title="Error fetching involved currency rates")
         create_response("417", {"error": str(e)})
         return
+
+
+@frappe.whitelist()
+def add_fields_to_user_core_json():
+    # Path to core User JSON in frappe app
+    json_path = os.path.join(
+        frappe.get_app_path("frappe", "core", "doctype", "user", "user.json")
+    )
+
+    # Load the existing User JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Define new fields
+    new_fields = [
+        {
+            "fieldname": "pin",
+            "label": "PIN",
+            "fieldtype": "Data",
+            "insert_after": "email",  # place after email field
+            "hidden": 0,
+            "reqd": 0
+        },
+        {
+            "fieldname": "role_select",
+            "label": "Role",
+            "fieldtype": "Select",
+            "options": "Admin\nCashier\nQuote\nQuote and Sales",
+            "insert_after": "blue_field",
+            "hidden": 0,
+            "reqd": 0
+        }
+    ]
+
+    # Add fields if they don't exist
+    existing_fieldnames = [f["fieldname"] for f in data.get("fields", [])]
+    added = False
+    for field in new_fields:
+        if field["fieldname"] not in existing_fieldnames:
+            data["fields"].append(field)
+            added = True
+
+    # Save back and reload only if we added something
+    if added:
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        # Reload User DocType
+        frappe.reload_doc("core", "doctype", "user", force=True)
+        frappe.clear_cache(doctype="User")
+        return "Fields added successfully"
+
+    return "Fields already exist"
+
+
+@frappe.whitelist()
+def add_custom_fields_to_quotation():
+    # Path to Quotation DocType JSON
+    module_path = frappe.get_module_path("selling")
+    json_path = os.path.join(module_path, "doctype/quotation/quotation.json")
+
+    # Load JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Fields to add
+    fields_to_add = [
+        {
+            "fieldname": "cost_center",
+            "label": "Cost Center",
+            "fieldtype": "Link",
+            "options": "Cost Center",
+            "insert_after": "customer",
+            "hidden": 0,
+            "reqd": 0
+        },
+        {
+            "fieldname": "reference_number",
+            "label": "Reference Number",
+            "fieldtype": "Data",
+            "insert_after": "cost_center",
+            "hidden": 0,
+            "reqd": 0
+        }
+    ]
+
+    existing_fieldnames = [f["fieldname"] for f in data.get("fields", [])]
+    added = False
+
+    for field in fields_to_add:
+        if field["fieldname"] not in existing_fieldnames:
+            data["fields"].append(field)
+            added = True
+
+    if added:
+        # Save JSON back
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        # Reload DocType
+        frappe.reload_doc("selling", "doctype", "quotation", force=True)
+        frappe.clear_cache(doctype="Quotation")
+
+        return "Custom fields added to Quotation successfully"
+
+    return "Custom fields already exist"
+
+
+@frappe.whitelist()
+def add_supplier_full_name_field():
+    # Path to Supplier DocType JSON
+    module_path = frappe.get_module_path("buying")
+    json_path = os.path.join(module_path, "doctype/supplier/supplier.json")
+
+    # Load existing JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Define the new field
+    new_field = {
+        "fieldname": "supplier_full_name",
+        "label": "Supplier Full Name",
+        "fieldtype": "Data",
+        "insert_after": "supplier",
+        "hidden": 0,
+        "reqd": 0
+    }
+
+    # Add if not exists
+    existing_fieldnames = [f["fieldname"] for f in data.get("fields", [])]
+    if new_field["fieldname"] not in existing_fieldnames:
+        data["fields"].append(new_field)
+
+        # Save JSON back
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        # Reload Supplier DocType
+        frappe.reload_doc("buying", "doctype", "supplier", force=True)
+        frappe.clear_cache(doctype="Supplier")
+
+        return "Supplier Full Name field added successfully"
+
+    return "Supplier Full Name field already exists"
+
+
+def add_fields_on_install():
+    add_fields_to_user_core_json()
+    add_custom_fields_to_quotation()
+    add_supplier_full_name_field()
