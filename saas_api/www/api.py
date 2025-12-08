@@ -913,7 +913,7 @@ def login(usr, pwd, timezone):
     if default_cost_center:
         customers = frappe.get_list("Customer",
             filters={"custom_cost_center": default_cost_center},
-            fields=["name", "customer_name", "customer_group", "territory"],
+            fields=["name", "customer_name", "customer_group", "territory", "custom_cost_center"],
             ignore_permissions=True
         )
 
@@ -1839,7 +1839,7 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
         user.add_roles(*all_roles)
 
         frappe.db.commit()
-        set_defaults_for_user(user.name)
+        set_defaults_for_user()
 
         create_response(
             status=200,

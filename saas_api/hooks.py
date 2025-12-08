@@ -261,3 +261,16 @@ permission_query_conditions = {
     "User": "saas_api.www.on_before.users_permission_query",
     "Item Group": "saas_api.www.on_before.item_group_permission_query"
 }
+
+fixtures = [
+    {
+        "dt": "Custom Field",
+        "filters": [
+            ["dt", "in", ["Customer"]],
+            ["fieldname", "in", [
+                "custom_cost_center",
+                "custom_warehouse",
+            ]]
+        ]
+    }
+]
