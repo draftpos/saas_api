@@ -1839,6 +1839,7 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
         user.add_roles(*all_roles)
 
         frappe.db.commit()
+        set_defaults_for_user(user.name)
 
         create_response(
             status=200,
@@ -2064,3 +2065,64 @@ def add_fields_on_install():
     add_fields_to_user_core_json()
     add_custom_fields_to_quotation()
     add_supplier_full_name_field()
+
+@frappe.whitelist()
+def set_defaults_for_user(user_email):
+    try:
+        # 1. Get default company from Global Defaults
+        default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+        if not default_company:
+            return "No default company set in Global Defaults"
+
+        # 2. Set Company User Permission
+        set_user_permission(user_email, "Company", default_company)
+
+        # 3. Find Cost Center starting with 'Main'
+        main_cost_center = frappe.db.get_value(
+            "Cost Center",
+            {"company": default_company, "cost_center_name": ["like", "Main%"]},
+            "name"
+        )
+
+        if main_cost_center:
+            set_user_permission(user_email, "Cost Center", main_cost_center)
+
+        # 4. Find Warehouse starting with 'Stores'
+        main_warehouse = frappe.db.get_value(
+            "Warehouse",
+            {"company": default_company, "warehouse_name": ["like", "Stores%"]},
+            "name"
+        )
+
+        if main_warehouse:
+            set_user_permission(user_email, "Warehouse", main_warehouse)
+
+        frappe.clear_cache(user_email)
+
+        return f"Defaults set for {user_email} successfully"
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Set User Defaults Failed")
+        return f"Error: {str(e)}"
+
+
+def set_user_permission(user, doctype, value):
+    """Utility to create or update User Permission"""
+    if not frappe.db.exists("User Permission", {"user": user, "allow": doctype}):
+        # Create new permission
+        doc = frappe.get_doc({
+            "doctype": "User Permission",
+            "user": user,
+            "allow": doctype,
+            "for_value": value,
+            "is_default": 1
+        })
+        doc.insert(ignore_permissions=True)
+    else:
+        # Update existing permission
+        doc = frappe.get_doc("User Permission", 
+            {"user": user, "allow": doctype}
+        )
+        doc.for_value = value
+        doc.is_default = 1
+        doc.save(ignore_permissions=True)
