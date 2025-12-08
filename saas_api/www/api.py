@@ -655,8 +655,9 @@ def upload_company_logo():
         "file_url": file_doc.file_url
     }
 
+
 @frappe.whitelist()
-def get_quotations_by_date(date, limit=20, start=0, status=None):
+def get_quotations_by_date(date, limit=20, start=0, status=None,cost_center=None):
     """
     Get list of quotations for the logged-in user's company filtered by a specific date.
     """
@@ -671,11 +672,11 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
         )
         if not company:
             return {"status": "error", "message": "User has no company assigned."}
-
         filters["company"] = company
     if date:
         filters["transaction_date"] = date
-
+    if cost_center:
+        filters["cost_center"] = cost_center
     if status:
         status_map = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
         if status in status_map:
@@ -695,7 +696,8 @@ def get_quotations_by_date(date, limit=20, start=0, status=None):
         "grand_total",
         "docstatus",
         "company",
-        "reference_number"
+        "reference_number",
+        "cost_center"
     ]
 
     if customer_field:
