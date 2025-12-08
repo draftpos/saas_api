@@ -913,7 +913,7 @@ def login(usr, pwd, timezone):
     if default_cost_center:
         customers = frappe.get_list("Customer",
             filters={"custom_cost_center": default_cost_center},
-            fields=["name", "customer_name", "customer_group", "territory", "custom_cost_center"],
+            fields=["name", "customer_name", "customer_group", "territory"],
             ignore_permissions=True
         )
 
