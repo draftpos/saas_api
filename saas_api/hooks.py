@@ -244,9 +244,9 @@ after_install = "saas_api.www.api.add_fields_on_install"
 
 
 doc_events = {
-    "Item": {
-        "before_insert": "saas_api.www.on_before.item_before_insert"
-    },
+    # "Item": {
+    #     "before_insert": "saas_api.www.on_before.item_before_insert"
+    # },
     # "Supplier": {
     #     "before_insert": "saas_api.www.on_before.supplier_before_insert"
     # },
