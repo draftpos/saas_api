@@ -250,9 +250,9 @@ doc_events = {
     # "Supplier": {
     #     "before_insert": "saas_api.www.on_before.supplier_before_insert"
     # },
-    "Item Group": {
-        "before_insert": "saas_api.www.on_before.item_group_before_insert"
-    }
+    # "Item Group": {
+    #     "before_insert": "saas_api.www.on_before.item_group_before_insert"
+    # }
 }
 
 permission_query_conditions = {
