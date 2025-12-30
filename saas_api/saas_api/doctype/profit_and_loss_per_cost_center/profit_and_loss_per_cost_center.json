@@ -9,7 +9,7 @@
   "cost_center",
   "income",
   "expense",
-  "gross_profit__loss",
+  "gross_profit_loss",
   "date"
  ],
  "fields": [
@@ -34,20 +34,20 @@
    "label": "Expense"
   },
   {
-   "fieldname": "gross_profit__loss",
-   "fieldtype": "Float",
-   "label": "Gross Profit / Loss"
-  },
-  {
    "fieldname": "date",
    "fieldtype": "Date",
    "label": "Date"
+  },
+  {
+   "fieldname": "gross_profit_loss",
+   "fieldtype": "Float",
+   "label": "Gross Profit / Loss"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 12:22:10.344993",
+ "modified": "2025-12-30 08:49:03.965053",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "Profit and Loss per Cost Center",

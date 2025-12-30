@@ -1271,7 +1271,7 @@ def default_cost_center(company):
             return cc_name
 
     return None
-    
+
 import json
 from frappe import _
 import frappe
@@ -1410,19 +1410,17 @@ def calculate_and_store_profit_and_loss():
 
 @frappe.whitelist(allow_guest =True)
 def get_pl_cost_center(company, cost_center=None):
+    calculate_and_store_profit_and_loss()
     """
     Fetch Profit and Loss values from `Profit and Loss per Cost Center` doctype.
     Filters by company and optional cost center.
     """
-
     if not company:
         frappe.throw("Company is required")
 
     filters = {"company": company}
-
     if cost_center:
         filters["cost_center"] = cost_center
-
     doc = frappe.get_all(
         "Profit and Loss per Cost Center",
         filters=filters,
@@ -1436,12 +1434,9 @@ def get_pl_cost_center(company, cost_center=None):
         ],
         limit_page_length=1,
     )
-
     if not doc:
         return {"error": "No data found for given filters"}
-
     return doc[0]
-
 
 @frappe.whitelist()
 def get_sales_invoice(user=None):
@@ -1673,8 +1668,7 @@ def get_users():
             "User",
             filters={"name": ["in", user_names]},
             fields=[
-                "name", "email", "full_name", "first_name", "last_name",
-                "phone_number", "enabled", "user_type","pin","role_select"
+                "name", "email", "full_name", "first_name", "last_name", "enabled", "user_type","pin","role_select"
             ]
         )
 
