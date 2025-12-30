@@ -1271,6 +1271,7 @@ def default_cost_center(company):
             return cc_name
 
     return None
+    
 import json
 from frappe import _
 import frappe
@@ -1279,18 +1280,6 @@ from datetime import timedelta
 
 @frappe.whitelist(allow_guest=True)
 def get_sales_invoice_report():
-    """
-    Returns a summary of Sales Invoices with optional filters.
-    Expects JSON payload like:
-    {
-        "created_by": "user@example.com",
-        "from_date": "2025-01-01",
-        "to_date": "2025-01-31",
-        "company": "Saas Company (Demo)",
-        "cost_center": "Main - MEGm3@0266"
-    }
-    """
-
     # Load JSON payload
     try:
         data = json.loads(frappe.request.data)
@@ -1298,7 +1287,7 @@ def get_sales_invoice_report():
         return {"message": {"status": "error", "message": "Invalid JSON payload"}}
 
     # Extract filters
-    created_by = data.get("created_by")
+    user = data.get("user")
     from_date = data.get("from_date")
     to_date = data.get("to_date")
     company = data.get("company")
@@ -1321,14 +1310,17 @@ def get_sales_invoice_report():
 
     # Build filters
     filters = {"company": company}
-    if created_by:
-        filters["owner"] = created_by
+
+    if user:
+        filters["owner"] = user
+
     if from_date and to_date:
         filters["creation"] = ["between", [from_date, to_date]]
     elif from_date:
         filters["creation"] = [">=", from_date]
     elif to_date:
         filters["creation"] = ["<=", to_date]
+
     if cost_center:
         filters["cost_center"] = cost_center
 
@@ -1349,7 +1341,6 @@ def get_sales_invoice_report():
             "total_amount": total_amount
         }
     }
-
 
 @frappe.whitelist(allow_guest=True)
 def calculate_and_store_profit_and_loss():
