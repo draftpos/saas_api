@@ -24,10 +24,8 @@ def execute(filters=None):
     cashier = filters.get("cashier")
     cost_center = filters.get("cost_center")
 
-    # Base conditions: only submitted invoices
     conditions = ["si.docstatus = 1"]
 
-    # Apply optional filters
     if from_date:
         conditions.append(f"si.posting_date >= '{from_date}'")
     if to_date:
@@ -39,11 +37,11 @@ def execute(filters=None):
 
     condition_str = " AND ".join(conditions)
 
-    # Aggregate total sales per cashier (owner)
     sales = frappe.db.sql(
         f"""
         SELECT
             si.owner AS cashier,
+            COUNT(si.name) AS invoice_count,
             SUM(si.grand_total) AS total_sales
         FROM `tabSales Invoice` si
         WHERE {condition_str}
@@ -53,11 +51,26 @@ def execute(filters=None):
         as_dict=True
     )
 
-    # Report columns
     columns = [
-        {"label": "Cashier", "fieldname": "cashier", "fieldtype": "Link", "options": "User", "width": 200},
-        {"label": "Total Sales", "fieldname": "total_sales", "fieldtype": "Currency", "width": 150},
+        {
+            "label": "Cashier",
+            "fieldname": "cashier",
+            "fieldtype": "Link",
+            "options": "User",
+            "width": 200,
+        },
+        {
+            "label": "Invoices",
+            "fieldname": "invoice_count",
+            "fieldtype": "Int",
+            "width": 120,
+        },
+        {
+            "label": "Total Sales",
+            "fieldname": "total_sales",
+            "fieldtype": "Currency",
+            "width": 150,
+        },
     ]
 
     return columns, sales
-
