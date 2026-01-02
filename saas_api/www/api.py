@@ -120,8 +120,8 @@ def create_item():
         #     }
 
         # Auto-generate item code
-        item_code = generate_item_code()
-
+        # item_code = generate_item_code()
+        item_code = data.get("item_code")
         # Ensure Item Group exists
         if not frappe.db.exists("Item Group", item_group):
             group = frappe.get_doc({
