@@ -4,12 +4,8 @@
 # import frappe
 
 # sales_by_cashier.py (Script Report for Sales Invoice)
-
-
 # sales_by_cashier.py
-
 # sales_by_cashier.py (using created_by)
-
 # sales_by_cashier.py
 
 import frappe
@@ -21,7 +17,7 @@ def execute(filters=None):
 
     from_date = filters.get("from_date")
     to_date = filters.get("to_date")
-    cashier = filters.get("cashier")
+    cashier = filters.get("cashier")  # expected to be email
     cost_center = filters.get("cost_center")
 
     conditions = ["si.docstatus = 1"]
@@ -31,7 +27,7 @@ def execute(filters=None):
     if to_date:
         conditions.append(f"si.posting_date <= '{to_date}'")
     if cashier:
-        conditions.append(f"si.owner = '{cashier}'")
+        conditions.append(f"u.email = '{cashier}'")
     if cost_center:
         conditions.append(f"si.cost_center = '{cost_center}'")
 
@@ -40,12 +36,13 @@ def execute(filters=None):
     sales = frappe.db.sql(
         f"""
         SELECT
-            si.owner AS cashier,
+            u.email AS cashier,
             COUNT(si.name) AS invoice_count,
             SUM(si.grand_total) AS total_sales
         FROM `tabSales Invoice` si
+        INNER JOIN `tabUser` u ON u.name = si.owner
         WHERE {condition_str}
-        GROUP BY si.owner
+        GROUP BY u.email
         ORDER BY total_sales DESC
         """,
         as_dict=True
@@ -53,11 +50,10 @@ def execute(filters=None):
 
     columns = [
         {
-            "label": "Cashier",
+            "label": "Cashier Email",
             "fieldname": "cashier",
-            "fieldtype": "Link",
-            "options": "User",
-            "width": 200,
+            "fieldtype": "Data",
+            "width": 240,
         },
         {
             "label": "Invoices",
