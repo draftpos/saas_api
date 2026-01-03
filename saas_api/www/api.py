@@ -19,7 +19,7 @@ import re
 from frappe.utils import validate_email_address
 from frappe.utils import flt, today, add_days
 import os
-
+from frappe.desk.query_report import run
 
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
@@ -117,8 +117,8 @@ def create_item():
         #     }
 
         # Auto-generate item code
-        item_code = generate_item_code()
-
+        # item_code = generate_item_code()
+        item_code = data.get("item_code")
         # Ensure Item Group exists
         if not frappe.db.exists("Item Group", item_group):
             group = frappe.get_doc({
@@ -2137,3 +2137,42 @@ def set_user_permission(user, doctype, value):
         doc.for_value = value
         doc.is_default = 1
         doc.save(ignore_permissions=True)
+
+
+
+
+@frappe.whitelist()
+def run_sales_by_cost_center(filters):
+    filters = frappe.parse_json(filters)
+
+    # Hard validation
+    if not filters.get("company"):
+        frappe.throw("Company is required")
+
+    filters.setdefault("fiscal_year", "2026")
+    filters.setdefault("period", "Monthly")
+
+    result = run(
+        report_name="sales data",
+        filters=filters,
+      
+    )
+    
+
+    frappe.log_error(
+        title="Sales By Cost Center Debug",
+        message=frappe.as_json(result)
+    )
+    # DEBUG: prove report executed
+    if not result.get("columns"):
+        frappe.log_error(
+    title="Sales By Cost Center Debug",
+    message=frappe.as_json(result)
+)
+
+    return {
+        "columns": result.get("columns"),
+        "data": result.get("result"),
+        "chart": result.get("chart"),
+        "summary": result.get("report_summary")
+    }
