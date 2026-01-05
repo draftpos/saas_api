@@ -1618,6 +1618,7 @@ def edit_user(email, first_name=None, last_name=None, full_name=None, password=N
 def get_users():
     """
     Returns a list of users that belong to the same company as the currently logged-in user.
+    Now includes default cost center for each user.
     """
     try:
         # Ensure user is logged in
@@ -1642,6 +1643,13 @@ def get_users():
                 "data": []
             }
 
+        # Get current user's cost center to filter other users
+        current_user_cost_center = frappe.db.get_value(
+            "User Permission",
+            {"user": frappe.session.user, "allow": "Cost Center", "is_default": 1},
+            "for_value"
+        )
+
         # Get all users who have the same company in User Permissions
         users_with_same_company = frappe.get_all(
             "User Permission",
@@ -1663,20 +1671,49 @@ def get_users():
             "User",
             filters={"name": ["in", user_names]},
             fields=[
-                "name", "email", "full_name", "first_name", "last_name", "enabled", "user_type","pin","role_select"
+                "name", "email", "full_name", "first_name", "last_name", 
+                "enabled", "user_type", "pin", "role_select"
             ]
         )
 
-        # Attach roles for each user====================================================
+        # Enhance each user with additional data
+        filtered_users = []
         for user in users:
+            # Get user's default cost center
+            user_cost_center = frappe.db.get_value(
+                "User Permission",
+                {"user": user["name"], "allow": "Cost Center", "is_default": 1},
+                "for_value"
+            )
+            
+            # Filter: only include users with matching cost center (or if current user has no cost center)
+            if current_user_cost_center:
+                if user_cost_center != current_user_cost_center:
+                    continue  # Skip users from different cost centers
+            
+            # Get user's default warehouse
+            user_warehouse = frappe.db.get_value(
+                "User Permission",
+                {"user": user["name"], "allow": "Warehouse", "is_default": 1},
+                "for_value"
+            )
+            
+            # Add cost center and warehouse to user data
+            user["cost_center"] = user_cost_center
+            user["warehouse"] = user_warehouse
+            
+            # Get user roles
             user_doc = frappe.get_doc("User", user["name"])
             user["roles"] = [role.role for role in user_doc.roles]
+            
+            filtered_users.append(user)
 
         return {
             "status": 200,
             "message": _("Users fetched successfully"),
             "company": current_user_company,
-            "data": users
+            "current_user_cost_center": current_user_cost_center,
+            "data": filtered_users
         }
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Users Error")
@@ -1685,7 +1722,6 @@ def get_users():
             "message": str(e),
             "data": []
         }
-
 
 def validate_password(password):
     if len(password) < 8:
@@ -2176,3 +2212,54 @@ def run_sales_by_cost_center(filters):
         "chart": result.get("chart"),
         "summary": result.get("report_summary")
     }
+
+
+
+@frappe.whitelist()
+def get_stock_reconciliation_with_items(from_date, to_date):
+    reconciliations = frappe.get_all(
+        "Stock Reconciliation",
+        filters={
+            "posting_date": ["between", [from_date, to_date]],
+            "docstatus": 1
+        },
+        fields=[
+            "name",
+            "company",
+            "posting_date",
+            "purpose",
+            "difference_amount",
+            "cost_center"
+        ]
+    )
+
+    if not reconciliations:
+        return []
+
+    names = [r.name for r in reconciliations]
+
+    items = frappe.get_all(
+        "Stock Reconciliation Item",
+        filters={"parent": ["in", names]},
+        fields=[
+            "parent",
+            "item_code",
+            "warehouse",
+            "qty",
+            "current_qty",
+            "quantity_difference",
+            "valuation_rate",
+            "amount",
+            "amount_difference",
+            "item_name"
+        ]
+    )
+
+    items_map = {}
+    for i in items:
+        items_map.setdefault(i.parent, []).append(i)
+
+    for r in reconciliations:
+        r["items"] = items_map.get(r.name, [])
+
+    return reconciliations
