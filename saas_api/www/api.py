@@ -2232,7 +2232,8 @@ def get_stock_reconciliation_with_items(from_date, to_date):
             "quantity_difference",
             "valuation_rate",
             "amount",
-            "amount_difference"
+            "amount_difference",
+            "item_name"
         ]
     )
 
