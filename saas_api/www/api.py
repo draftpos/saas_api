@@ -2194,3 +2194,53 @@ def run_sales_by_cost_center(filters):
         "chart": result.get("chart"),
         "summary": result.get("report_summary")
     }
+
+
+
+@frappe.whitelist()
+def get_stock_reconciliation_with_items(from_date, to_date):
+    reconciliations = frappe.get_all(
+        "Stock Reconciliation",
+        filters={
+            "posting_date": ["between", [from_date, to_date]],
+            "docstatus": 1
+        },
+        fields=[
+            "name",
+            "company",
+            "posting_date",
+            "purpose",
+            "difference_amount",
+            "cost_center"
+        ]
+    )
+
+    if not reconciliations:
+        return []
+
+    names = [r.name for r in reconciliations]
+
+    items = frappe.get_all(
+        "Stock Reconciliation Item",
+        filters={"parent": ["in", names]},
+        fields=[
+            "parent",
+            "item_code",
+            "warehouse",
+            "qty",
+            "current_qty",
+            "quantity_difference",
+            "valuation_rate",
+            "amount",
+            "amount_difference"
+        ]
+    )
+
+    items_map = {}
+    for i in items:
+        items_map.setdefault(i.parent, []).append(i)
+
+    for r in reconciliations:
+        r["items"] = items_map.get(r.name, [])
+
+    return reconciliations
