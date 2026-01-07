@@ -1,0 +1,151 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-07 09:02:48.938253",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "column_break_xqcw",
+  "user",
+  "dashboard_section",
+  "dashboard_filter",
+  "dashboard_filter_by_cost_center",
+  "filter_by_user",
+  "dashboard_filter_by_warehouse",
+  "pos_section",
+  "pos_quotations",
+  "pos_sales",
+  "quotations_section",
+  "quotation_list",
+  "create_quotations",
+  "cancel_quotations",
+  "quotation_create_customer",
+  "print_quotations"
+ ],
+ "fields": [
+  {
+   "fieldname": "column_break_xqcw",
+   "fieldtype": "Column Break",
+   "options": "User"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "dashboard_section",
+   "fieldtype": "Section Break",
+   "label": "Dashboard"
+  },
+  {
+   "default": "0",
+   "fieldname": "dashboard_filter",
+   "fieldtype": "Check",
+   "label": "filter"
+  },
+  {
+   "default": "0",
+   "fieldname": "dashboard_filter_by_cost_center",
+   "fieldtype": "Check",
+   "label": "filter by cost center"
+  },
+  {
+   "default": "0",
+   "fieldname": "filter_by_user",
+   "fieldtype": "Check",
+   "label": "filter by user"
+  },
+  {
+   "default": "0",
+   "fieldname": "dashboard_filter_by_warehouse",
+   "fieldtype": "Check",
+   "label": "filter by warehouse"
+  },
+  {
+   "fieldname": "pos_section",
+   "fieldtype": "Section Break",
+   "label": "POS"
+  },
+  {
+   "default": "0",
+   "fieldname": "pos_quotations",
+   "fieldtype": "Check",
+   "label": "Quotations"
+  },
+  {
+   "default": "0",
+   "fieldname": "pos_sales",
+   "fieldtype": "Check",
+   "label": "POS Sales"
+  },
+  {
+   "fieldname": "quotations_section",
+   "fieldtype": "Section Break",
+   "label": "Quotations"
+  },
+  {
+   "default": "0",
+   "fieldname": "quotation_list",
+   "fieldtype": "Check",
+   "label": "Quotation List"
+  },
+  {
+   "default": "0",
+   "fieldname": "create_quotations",
+   "fieldtype": "Check",
+   "label": "Create"
+  },
+  {
+   "default": "0",
+   "fieldname": "cancel_quotations",
+   "fieldtype": "Check",
+   "label": "Cancel"
+  },
+  {
+   "default": "0",
+   "fieldname": "quotation_create_customer",
+   "fieldtype": "Check",
+   "label": "Create Customer"
+  },
+  {
+   "default": "0",
+   "fieldname": "print_quotations",
+   "fieldtype": "Check",
+   "label": "Print Quotations"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-01-07 09:30:14.683198",
+ "modified_by": "Administrator",
+ "module": "Saas Api",
+ "name": "user rights",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

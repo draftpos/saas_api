@@ -17,7 +17,8 @@ from frappe.utils.data import flt
 from frappe.utils import cint
 import re
 from frappe.utils import validate_email_address
-from frappe.utils import flt, today, add_days
+from frappe.utils import flt, today, add_days,getdate
+
 import os
 from frappe.desk.query_report import run
 
@@ -2263,3 +2264,100 @@ def get_stock_reconciliation_with_items(from_date, to_date):
         r["items"] = items_map.get(r.name, [])
 
     return reconciliations
+
+@frappe.whitelist()
+def get_sales_invoices(
+    from_date=None,
+    to_date=None,
+    cost_center=None,
+    user=None
+):
+    conditions = ["si.docstatus = 1"]
+    values = {}
+
+    if from_date:
+        conditions.append("si.posting_date >= %(from_date)s")
+        values["from_date"] = getdate(from_date)
+
+    if to_date:
+        conditions.append("si.posting_date <= %(to_date)s")
+        values["to_date"] = getdate(to_date)
+
+    if user:
+        conditions.append("si.owner = %(user)s")
+        values["user"] = user
+
+    if cost_center:
+        conditions.append("""
+            EXISTS (
+                SELECT 1
+                FROM `tabSales Invoice Item` sii
+                WHERE sii.parent = si.name
+                AND sii.cost_center = %(cost_center)s
+            )
+        """)
+        values["cost_center"] = cost_center
+
+    invoices = frappe.db.sql(f"""
+        SELECT
+            si.name,
+            si.posting_date,
+            si.customer,
+            si.grand_total,
+            si.net_total,
+            si.owner,
+            si.company
+        FROM `tabSales Invoice` si
+        WHERE {" AND ".join(conditions)}
+        ORDER BY si.posting_date DESC
+    """, values, as_dict=True)
+
+    if not invoices:
+        return []
+
+    invoice_names = [inv.name for inv in invoices]
+
+    # ------------------------------------------------------------------
+    # ITEMS
+    # ------------------------------------------------------------------
+    items = frappe.db.sql("""
+        SELECT
+            parent,
+            item_code,
+            item_name,
+            qty,
+            rate,
+            amount,
+            cost_center
+        FROM `tabSales Invoice Item`
+        WHERE parent IN %(parents)s
+    """, {"parents": tuple(invoice_names)}, as_dict=True)
+
+    items_map = {}
+    for item in items:
+        items_map.setdefault(item.parent, []).append(item)
+
+    # ------------------------------------------------------------------
+    # PAYMENTS
+    # ------------------------------------------------------------------
+    payments = frappe.db.sql("""
+        SELECT
+            parent,
+            mode_of_payment,
+            amount
+        FROM `tabSales Invoice Payment`
+        WHERE parent IN %(parents)s
+    """, {"parents": tuple(invoice_names)}, as_dict=True)
+
+    payments_map = {}
+    for payment in payments:
+        payments_map.setdefault(payment.parent, []).append(payment)
+
+    # ------------------------------------------------------------------
+    # MERGE RESPONSE
+    # ------------------------------------------------------------------
+    for invoice in invoices:
+        invoice["items"] = items_map.get(invoice.name, [])
+        invoice["payments"] = payments_map.get(invoice.name, [])
+
+    return invoices
