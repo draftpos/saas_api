@@ -2323,13 +2323,15 @@ def get_sales_invoices(
     # PAYMENTS
     # ------------------------------------------------------------------
     payments = frappe.db.sql("""
-        SELECT
-            parent,
-            mode_of_payment,
-            amount
-        FROM `tabSales Invoice Payment`
-        WHERE parent IN %(parents)s
-    """, {"parents": tuple(invoice_names)}, as_dict=True)
+    SELECT
+        per.reference_name AS parent,
+        pe.mode_of_payment,
+        per.allocated_amount AS amount
+    FROM `tabPayment Entry Reference` per
+    JOIN `tabPayment Entry` pe ON pe.name = per.parent
+    WHERE per.reference_name IN %(parents)s
+""", {"parents": tuple(invoice_names)}, as_dict=True)
+
 
     payments_map = {}
     for payment in payments:
