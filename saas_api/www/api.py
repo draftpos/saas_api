@@ -2326,11 +2326,13 @@ def get_sales_invoices(
     SELECT
         per.reference_name AS parent,
         pe.mode_of_payment,
+        pe.paid_to AS paid_to_account,
         per.allocated_amount AS amount
     FROM `tabPayment Entry Reference` per
     JOIN `tabPayment Entry` pe ON pe.name = per.parent
     WHERE per.reference_name IN %(parents)s
 """, {"parents": tuple(invoice_names)}, as_dict=True)
+
 
 
     payments_map = {}
