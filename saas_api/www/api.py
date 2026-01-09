@@ -42,14 +42,11 @@ def generate_item_code():
         next_num = last_num + 1
     else:
         next_num = 1
-
     new_code = f"{prefix}{random_letters}-{next_num:03d}"
-
     # Double-check uniqueness
     while frappe.db.exists("Item", new_code):
         next_num += 1
         new_code = f"{prefix}{random_letters}-{next_num:03d}"
-
     return new_code
 def generate_supplier_code():
     """Generate a unique supplier code: HS-XXXXX-### style with sequential last 3 digits"""
@@ -1503,8 +1500,6 @@ def get_customers():
         )
         if not default_warehouse:
             return create_response("400", {"error": "No default Warehouse found for the user."})
-
-
         # Fetch customers with default price list
         customers = frappe.get_all(
             "Customer",
@@ -1721,7 +1716,6 @@ def get_users():
             "current_user_cost_center": current_user_cost_center,
             "data": filtered_users
         }
-
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Users Error")
         return {
@@ -1731,14 +1725,6 @@ def get_users():
         }
 
 def validate_password(password):
-    """
-    Validate password strength
-    Args:
-        password: Password to validate
-    
-    Raises:
-        ValidationError: If password doesn't meet requirements
-    """
     if len(password) < 8:
         frappe.throw(_("Password must be at least 8 characters long"))
     
@@ -1934,18 +1920,15 @@ def get_currencies_with_exchange_involvement():
                     for r in rates
                 ]
             })
-
         create_response("200", {
             "count": len(result),
             "currencies": result
         })
         return
-
     except Exception as e:
         frappe.log_error(message=str(e), title="Error fetching involved currency rates")
         create_response("417", {"error": str(e)})
         return
-
 
 @frappe.whitelist()
 def add_fields_to_user_core_json():
@@ -1996,7 +1979,6 @@ def add_fields_to_user_core_json():
         frappe.reload_doc("core", "doctype", "user", force=True)
         frappe.clear_cache(doctype="User")
         return "Fields added successfully"
-
     return "Fields already exist"
 
 
@@ -2052,7 +2034,6 @@ def add_custom_fields_to_quotation():
 
     return "Custom fields already exist"
 
-
 @frappe.whitelist()
 def add_supplier_full_name_field():
     # Path to Supplier DocType JSON
@@ -2085,16 +2066,92 @@ def add_supplier_full_name_field():
         # Reload Supplier DocType
         frappe.reload_doc("buying", "doctype", "supplier", force=True)
         frappe.clear_cache(doctype="Supplier")
-
         return "Supplier Full Name field added successfully"
-
     return "Supplier Full Name field already exists"
 
+
+@frappe.whitelist()
+def add_reference_number_to_sales_invoice():
+    module_path = frappe.get_module_path("accounts")
+    json_path = os.path.join(
+        module_path,
+        "doctype/sales_invoice/sales_invoice.json"
+    )
+
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    new_field = {
+        "fieldname": "reference_number",
+        "label": "Reference Number",
+        "fieldtype": "Data",
+        "insert_after": "customer",
+        "reqd": 1,
+        "unique": 1
+    }
+
+    existing_fieldnames = [
+        f["fieldname"] for f in data.get("fields", [])
+    ]
+
+    if new_field["fieldname"] not in existing_fieldnames:
+        data["fields"].append(new_field)
+
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        frappe.reload_doc("accounts", "doctype", "sales_invoice", force=True)
+        frappe.clear_cache(doctype="Sales Invoice")
+
+        return "Reference Number field added successfully"
+
+    return "Reference Number field already exists"
+
+
+@frappe.whitelist()
+def add_reporting_category_to_accounts():
+    # Get path to the Accounts doctype JSON
+    module_path = frappe.get_module_path("accounts")
+    json_path = os.path.join(module_path, "doctype", "account", "account.json")
+
+    # Load existing JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Define the new field
+    new_field = {
+        "fieldname": "reporting_category",
+        "label": "Reporting Category",
+        "fieldtype": "Data",
+        "insert_after": "account_name",  # or whichever field you want it after
+        "reqd": 0,                       # not required
+        "unique": 0
+    }
+
+    # Check if field already exists
+    existing_fieldnames = [f["fieldname"] for f in data.get("fields", [])]
+
+    if new_field["fieldname"] not in existing_fieldnames:
+        data["fields"].append(new_field)
+
+        # Write back JSON
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        # Reload DocType so changes take effect
+        frappe.reload_doc("accounts", "doctype", "accounts", force=True)
+        frappe.clear_cache(doctype="Accounts")
+
+        return "Reporting Category field added successfully"
+
+    return "Reporting Category field already exists"
 
 def add_fields_on_install():
     add_fields_to_user_core_json()
     add_custom_fields_to_quotation()
     add_supplier_full_name_field()
+    add_reference_number_to_sales_invoice()
+    add_reporting_category_to_accounts()
 
 @frappe.whitelist()
 def set_defaults_for_user(user_email):
