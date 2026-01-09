@@ -2346,4 +2346,6 @@ def get_sales_invoices(
         invoice["items"] = items_map.get(invoice.name, [])
         invoice["payments"] = payments_map.get(invoice.name, [])
 
-    return invoices
+    return invoices 
+
+    #sakles
