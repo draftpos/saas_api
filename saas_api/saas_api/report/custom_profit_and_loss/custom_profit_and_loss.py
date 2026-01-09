@@ -41,7 +41,7 @@ def execute(filters=None):
     data = [
         {"account": "Revenue", "amount": revenue_total, "profit_associates": 0, "investment_income": 0},
         {"account": "Cost of Sales", "amount": cost_of_sales_total, "profit_associates": 0, "investment_income": 0},
-        {"account": "Gross Profit", "amount": round(revenue_total - cost_of_sales_total, 2), "profit_associates": 0, "investment_income": 0},
+        {"account": "Gross Profit", "amount":round(revenue_total - abs(cost_of_sales_total), 2), "profit_associates": 0, "investment_income": 0},
         {"account": "Other Operating Income", "amount": other_income_total, "profit_associates": 0, "investment_income": 0},
         {"account": "Distribution Costs", "amount": distribution_cost, "profit_associates": 0, "investment_income": 0},
         {"account": "Administrative Expenses", "amount": administrative_expenses, "profit_associates": 0, "investment_income": 0},
