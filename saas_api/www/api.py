@@ -2151,6 +2151,7 @@ def add_fields_on_install():
     add_custom_fields_to_quotation()
     add_supplier_full_name_field()
     add_reference_number_to_sales_invoice()
+    add_reporting_category_to_accounts()
 
 @frappe.whitelist()
 def set_defaults_for_user(user_email):
