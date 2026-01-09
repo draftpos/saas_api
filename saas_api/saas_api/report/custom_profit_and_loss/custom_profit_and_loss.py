@@ -8,6 +8,12 @@ def execute(filters=None):
 
     if not company or not from_date or not to_date:
         frappe.throw("Please select Company, From Date, and To Date")
+    def get_income_tax_expense():
+        settings = frappe.get_single("profit and loss settings")
+
+        # adjust fieldname to match your doctype
+        return round(settings.income_tax_expense or 0, 2)
+
 
 
     revenue_total = get_total_by_parent_prefix("Direct Income", from_date, to_date, company)
@@ -21,7 +27,7 @@ def execute(filters=None):
     interest_expense_on_borrowings = get_total_by_parent_prefix("Indirect Expenses", from_date, to_date, company, reporting_category="Interest Expense on Borrowings")
     interest_expense_on_long_term_provisions = get_total_by_parent_prefix("Indirect Expenses", from_date, to_date, company, reporting_category="Interest Expense on Long-Term Provisions")
     profit_before_income_tax = profit_before_financing_and_income_tax - interest_expense_on_borrowings - interest_expense_on_long_term_provisions
-    income_tax_expense = 50  # needs to be calculated properly
+    income_tax_expense = get_income_tax_expense() # needs to be calculated properly
     profit_from_continuing_operations = profit_before_income_tax - income_tax_expense
     loss_from_discontinued_operations = get_total_by_parent_prefix("Indirect Expenses", from_date, to_date, company, reporting_category="Loss from Discontinued Operations")
     profit_for_the_year = profit_from_continuing_operations - loss_from_discontinued_operations
@@ -35,7 +41,7 @@ def execute(filters=None):
     data = [
         {"account": "Revenue", "amount": revenue_total, "profit_associates": 0, "investment_income": 0},
         {"account": "Cost of Sales", "amount": cost_of_sales_total, "profit_associates": 0, "investment_income": 0},
-        {"account": "Gross Profit", "amount": revenue_total - cost_of_sales_total, "profit_associates": 0, "investment_income": 0},
+        {"account": "Gross Profit", "amount": round(revenue_total - cost_of_sales_total, 2), "profit_associates": 0, "investment_income": 0},
         {"account": "Other Operating Income", "amount": other_income_total, "profit_associates": 0, "investment_income": 0},
         {"account": "Distribution Costs", "amount": distribution_cost, "profit_associates": 0, "investment_income": 0},
         {"account": "Administrative Expenses", "amount": administrative_expenses, "profit_associates": 0, "investment_income": 0},
@@ -92,4 +98,4 @@ def get_total_by_parent_prefix(prefix, from_date, to_date, company, reporting_ca
         result = frappe.db.sql(query, params, as_dict=True)
         total = result[0].balance or 0
 
-    return total
+    return round(total or 0, 2)

@@ -1,4 +1,27 @@
 frappe.query_reports["Custom Profit and Loss"] = {
+        "filters": [
+        {
+            fieldname: "company",
+            label: "Company",
+            fieldtype: "Link",
+            options: "Company",
+            reqd: 1
+        },
+        {
+            fieldname: "from_date",
+            label: "From Date",
+            fieldtype: "Date",
+            reqd: 1,
+            default: frappe.datetime.add_months(frappe.datetime.get_today(), -1)
+        },
+        {
+            fieldname: "to_date",
+            label: "To Date",
+            fieldtype: "Date",
+            reqd: 1,
+            default: frappe.datetime.get_today()
+        }
+    ],
     onload: function(report) {
         report.page.add_inner_button("Print PDF", function() {
             if (!report.data || report.data.length === 0) {
@@ -42,6 +65,7 @@ frappe.query_reports["Custom Profit and Loss"] = {
                     </style>
                 </head>
                 <body>
+                  <h1> ${frappe.defaults.get_default("company")} </h1>
                     <h2>Profit & Loss Statement</h2>
                     <table class="table table-bordered table-striped">
                         <thead class="table-light">
@@ -73,48 +97,6 @@ frappe.query_reports["Custom Profit and Loss"] = {
             `;
 
             const w = window.open();
-            w.document.write(html);
-            w.document.close();
-            w.print();
-        });
-    }
-};
-
-frappe.query_reports["Custom Profit and Loss"] = {
-    "filters": [
-        {
-            fieldname: "company",
-            label: "Company",
-            fieldtype: "Link",
-            options: "Company",
-            reqd: 1
-        },
-        {
-            fieldname: "from_date",
-            label: "From Date",
-            fieldtype: "Date",
-            reqd: 1,
-            default: frappe.datetime.add_months(frappe.datetime.get_today(), -1)
-        },
-        {
-            fieldname: "to_date",
-            label: "To Date",
-            fieldtype: "Date",
-            reqd: 1,
-            default: frappe.datetime.get_today()
-        }
-    ],
-
-    onload: function(report) {
-        // 👇 Add your Print PDF button
-        report.page.add_inner_button("Print PDF", function() {
-            if (!report.data || report.data.length === 0) {
-                frappe.msgprint("Please run the report first.");
-                return;
-            }
-
-            const w = window.open();
-            let html = build_html(report.data); // your existing build_html function
             w.document.write(html);
             w.document.close();
             w.print();
