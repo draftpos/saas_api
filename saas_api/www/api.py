@@ -2108,6 +2108,44 @@ def add_reference_number_to_sales_invoice():
     return "Reference Number field already exists"
 
 
+@frappe.whitelist()
+def add_reporting_category_to_accounts():
+    # Get path to the Accounts doctype JSON
+    module_path = frappe.get_module_path("accounts")
+    json_path = os.path.join(module_path, "doctype", "account", "account.json")
+
+    # Load existing JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Define the new field
+    new_field = {
+        "fieldname": "reporting_category",
+        "label": "Reporting Category",
+        "fieldtype": "Data",
+        "insert_after": "account_name",  # or whichever field you want it after
+        "reqd": 0,                       # not required
+        "unique": 0
+    }
+
+    # Check if field already exists
+    existing_fieldnames = [f["fieldname"] for f in data.get("fields", [])]
+
+    if new_field["fieldname"] not in existing_fieldnames:
+        data["fields"].append(new_field)
+
+        # Write back JSON
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+        # Reload DocType so changes take effect
+        frappe.reload_doc("accounts", "doctype", "accounts", force=True)
+        frappe.clear_cache(doctype="Accounts")
+
+        return "Reporting Category field added successfully"
+
+    return "Reporting Category field already exists"
+
 def add_fields_on_install():
     add_fields_to_user_core_json()
     add_custom_fields_to_quotation()
@@ -2177,191 +2215,3 @@ def set_user_permission(user, doctype, value):
 
 
 
-
-@frappe.whitelist()
-def run_sales_by_cost_center(filters):
-    filters = frappe.parse_json(filters)
-
-    # Hard validation
-    if not filters.get("company"):
-        frappe.throw("Company is required")
-
-    filters.setdefault("fiscal_year", "2026")
-    filters.setdefault("period", "Monthly")
-
-    result = run(
-        report_name="sales data",
-        filters=filters,
-      
-    )
-    
-
-    frappe.log_error(
-        title="Sales By Cost Center Debug",
-        message=frappe.as_json(result)
-    )
-    # DEBUG: prove report executed
-    if not result.get("columns"):
-        frappe.log_error(
-    title="Sales By Cost Center Debug",
-    message=frappe.as_json(result)
-)
-
-    return {
-        "columns": result.get("columns"),
-        "data": result.get("result"),
-        "chart": result.get("chart"),
-        "summary": result.get("report_summary")
-    }
-
-
-
-@frappe.whitelist()
-def get_stock_reconciliation_with_items(from_date, to_date):
-    reconciliations = frappe.get_all(
-        "Stock Reconciliation",
-        filters={
-            "posting_date": ["between", [from_date, to_date]],
-            "docstatus": 1
-        },
-        fields=[
-            "name",
-            "company",
-            "posting_date",
-            "purpose",
-            "difference_amount",
-            "cost_center"
-        ]
-    )
-
-    if not reconciliations:
-        return []
-
-    names = [r.name for r in reconciliations]
-
-    items = frappe.get_all(
-        "Stock Reconciliation Item",
-        filters={"parent": ["in", names]},
-        fields=[
-            "parent",
-            "item_code",
-            "warehouse",
-            "qty",
-            "current_qty",
-            "quantity_difference",
-            "valuation_rate",
-            "amount",
-            "amount_difference",
-            "item_name"
-        ]
-    )
-
-    items_map = {}
-    for i in items:
-        items_map.setdefault(i.parent, []).append(i)
-
-    for r in reconciliations:
-        r["items"] = items_map.get(r.name, [])
-
-    return reconciliations
-
-@frappe.whitelist()
-def get_sales_invoices(
-    from_date=None,
-    to_date=None,
-    cost_center=None,
-    user=None
-):
-    conditions = ["si.docstatus = 1"]
-    values = {}
-
-    if from_date:
-        conditions.append("si.posting_date >= %(from_date)s")
-        values["from_date"] = getdate(from_date)
-
-    if to_date:
-        conditions.append("si.posting_date <= %(to_date)s")
-        values["to_date"] = getdate(to_date)
-
-    if user:
-        conditions.append("si.owner = %(user)s")
-        values["user"] = user
-
-    if cost_center:
-        conditions.append("""
-            EXISTS (
-                SELECT 1
-                FROM `tabSales Invoice Item` sii
-                WHERE sii.parent = si.name
-                AND sii.cost_center = %(cost_center)s
-            )
-        """)
-        values["cost_center"] = cost_center
-
-    invoices = frappe.db.sql(f"""
-        SELECT
-            si.name,
-            si.posting_date,
-            si.customer,
-            si.grand_total,
-            si.net_total,
-            si.owner,
-            si.company
-        FROM `tabSales Invoice` si
-        WHERE {" AND ".join(conditions)}
-        ORDER BY si.posting_date DESC
-    """, values, as_dict=True)
-
-    if not invoices:
-        return []
-
-    invoice_names = [inv.name for inv in invoices]
-
-    # ------------------------------------------------------------------
-    # ITEMS
-    # ------------------------------------------------------------------
-    items = frappe.db.sql("""
-        SELECT
-            parent,
-            item_code,
-            item_name,
-            qty,
-            rate,
-            amount,
-            cost_center
-        FROM `tabSales Invoice Item`
-        WHERE parent IN %(parents)s
-    """, {"parents": tuple(invoice_names)}, as_dict=True)
-
-    items_map = {}
-    for item in items:
-        items_map.setdefault(item.parent, []).append(item)
-
-    # ------------------------------------------------------------------
-    # PAYMENTS
-    # ------------------------------------------------------------------
-    payments = frappe.db.sql("""
-    SELECT
-        per.reference_name AS parent,
-        pe.mode_of_payment,
-        pe.paid_to AS paid_to_account,
-        per.allocated_amount AS amount
-    FROM `tabPayment Entry Reference` per
-    JOIN `tabPayment Entry` pe ON pe.name = per.parent
-    WHERE per.reference_name IN %(parents)s
-""", {"parents": tuple(invoice_names)}, as_dict=True)
-
-
-
-    payments_map = {}
-    for payment in payments:
-        payments_map.setdefault(payment.parent, []).append(payment)
-
-    # ------------------------------------------------------------------
-    # MERGE RESPONSE
-    # ------------------------------------------------------------------
-    for invoice in invoices:
-        invoice["items"] = items_map.get(invoice.name, [])
-        invoice["payments"] = payments_map.get(invoice.name, [])
-
-    return invoices
