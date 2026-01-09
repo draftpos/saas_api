@@ -86,7 +86,7 @@ frappe.query_reports["Custom Profit and Loss"] = {
                 <th style="width:30%;">Amount</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody>s
 `;
 
             report.data.forEach(row => {
