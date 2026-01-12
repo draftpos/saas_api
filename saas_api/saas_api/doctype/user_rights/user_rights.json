@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "user_section",
   "column_break_xqcw",
   "user",
   "dashboard_section",
@@ -20,7 +21,27 @@
   "create_quotations",
   "cancel_quotations",
   "quotation_create_customer",
-  "print_quotations"
+  "print_quotations",
+  "sales_section",
+  "sales_history_column",
+  "sales_sales_history_read",
+  "sales_sales_history_reports",
+  "customer_management_column",
+  "sales_customers_create",
+  "sales_customers_read",
+  "cashier_dashboard_column",
+  "sales_cashier_dashboard_read",
+  "sales_cashier_dashboard_cost_center",
+  "sales_cashier_dashboard_users",
+  "sales_cashier_dashboard_invoices",
+  "sales_cashier_dashboard_stats",
+  "products_section",
+  "products_read",
+  "products_edit",
+  "products_create",
+  "products_product_bundle",
+  "products_fiscalization",
+  "amended_from"
  ],
  "fields": [
   {
@@ -117,13 +138,137 @@
    "fieldname": "print_quotations",
    "fieldtype": "Check",
    "label": "Print Quotations"
+  },
+  {
+   "fieldname": "user_section",
+   "fieldtype": "Section Break",
+   "label": "user "
+  },
+  {
+   "fieldname": "sales_section",
+   "fieldtype": "Section Break",
+   "label": "Sales"
+  },
+  {
+   "fieldname": "sales_history_column",
+   "fieldtype": "Column Break",
+   "label": "sales History"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_sales_history_read",
+   "fieldtype": "Check",
+   "label": "read"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_sales_history_reports",
+   "fieldtype": "Check",
+   "label": "reports"
+  },
+  {
+   "fieldname": "customer_management_column",
+   "fieldtype": "Column Break",
+   "label": "Customer Management"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_customers_create",
+   "fieldtype": "Check",
+   "label": "create"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_customers_read",
+   "fieldtype": "Check",
+   "label": "read"
+  },
+  {
+   "fieldname": "cashier_dashboard_column",
+   "fieldtype": "Column Break",
+   "label": "Cashier Dashboard"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cashier_dashboard_read",
+   "fieldtype": "Check",
+   "label": "read"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cashier_dashboard_cost_center",
+   "fieldtype": "Check",
+   "label": "cost center"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cashier_dashboard_users",
+   "fieldtype": "Check",
+   "label": "users"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cashier_dashboard_invoices",
+   "fieldtype": "Check",
+   "label": "invoices"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cashier_dashboard_stats",
+   "fieldtype": "Check",
+   "label": "stats"
+  },
+  {
+   "fieldname": "products_section",
+   "fieldtype": "Section Break",
+   "label": "products"
+  },
+  {
+   "default": "0",
+   "fieldname": "products_read",
+   "fieldtype": "Check",
+   "label": "read"
+  },
+  {
+   "default": "0",
+   "fieldname": "products_edit",
+   "fieldtype": "Check",
+   "label": "edit"
+  },
+  {
+   "default": "0",
+   "fieldname": "products_create",
+   "fieldtype": "Check",
+   "label": "create"
+  },
+  {
+   "default": "0",
+   "fieldname": "products_product_bundle",
+   "fieldtype": "Check",
+   "label": "bundle"
+  },
+  {
+   "default": "0",
+   "fieldname": "products_fiscalization",
+   "fieldtype": "Check",
+   "label": "fiscalization"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "user rights",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-01-07 09:30:14.683198",
+ "modified": "2026-01-09 17:13:30.665533",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "user rights",
