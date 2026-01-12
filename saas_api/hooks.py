@@ -245,6 +245,7 @@ after_install = "saas_api.www.api.add_fields_on_install"
 
 
 after_install = "saas_api.utils.create_default_user_rights"
+boot = "saas_api.utils.create_default_user_rights"
 doc_events = {
     # "Item": {
     #     "before_insert": "saas_api.www.on_before.item_before_insert"
