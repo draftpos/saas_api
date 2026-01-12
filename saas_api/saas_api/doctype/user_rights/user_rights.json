@@ -5,9 +5,6 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "user_section",
-  "column_break_xqcw",
-  "user",
   "dashboard_section",
   "dashboard_filter",
   "dashboard_filter_by_cost_center",
@@ -44,20 +41,6 @@
   "amended_from"
  ],
  "fields": [
-  {
-   "fieldname": "column_break_xqcw",
-   "fieldtype": "Column Break",
-   "options": "User"
-  },
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "User",
-   "options": "User",
-   "reqd": 1,
-   "unique": 1
-  },
   {
    "fieldname": "dashboard_section",
    "fieldtype": "Section Break",
@@ -138,11 +121,6 @@
    "fieldname": "print_quotations",
    "fieldtype": "Check",
    "label": "Print Quotations"
-  },
-  {
-   "fieldname": "user_section",
-   "fieldtype": "Section Break",
-   "label": "user "
   },
   {
    "fieldname": "sales_section",
@@ -266,9 +244,8 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
- "modified": "2026-01-09 17:13:30.665533",
+ "modified": "2026-01-12 15:40:14.670230",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "user rights",
@@ -284,7 +261,6 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   }
  ],

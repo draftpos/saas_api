@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2026-01-12 09:22:44.141374",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-01-12 09:22:44.141374",
+ "modified_by": "Administrator",
+ "module": "Saas Api",
+ "name": "user-rights-manager",
+ "owner": "Administrator",
+ "page_name": "user-rights-manager",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "User Rights Manager"
+}
