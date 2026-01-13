@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:profile_name",
  "creation": "2026-01-12 12:26:31.359756",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -13,7 +14,10 @@
   {
    "fieldname": "profile_name",
    "fieldtype": "Data",
-   "label": "Profile Name"
+   "in_list_view": 1,
+   "label": "Profile Name",
+   "reqd": 1,
+   "unique": 1
   },
   {
    "default": "0",
@@ -31,10 +35,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-12 16:23:43.686236",
+ "modified": "2026-01-13 16:07:11.669210",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "User Rights Profile",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -52,7 +57,10 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "profile_name",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "profile_name"
 }
