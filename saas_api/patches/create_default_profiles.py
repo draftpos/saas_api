@@ -1,82 +1,47 @@
 import frappe
 
 def execute():
-    # Admin Profile
-    if not frappe.db.exists("User Rights Profile", "Super Admin"):
-        admin_profile = frappe.get_doc({
-            "doctype": "User Rights Profile",
+    """Create default User Rights Profiles: Admin and Cashier"""
+    
+    if not frappe.db.table_exists("tabUser Rights Profile"):
+        frappe.throw("User Rights Profile table does not exist. Run `bench migrate` first.")
+
+    # Define profiles
+    default_profiles = [
+        {
             "profile_name": "Admin",
             "is_admin": 1,
             "permissions": [
-                {
-                    "feature": "Dashboard", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                {
-                    "feature": "POS", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                {
-                    "feature": "Quotations", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                                {
-                    "feature": "Printer", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                                {
-                    "feature": "Settings", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                                {
-                    "feature": "Sales", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-
-                {
-                    "feature": "Payement Entries", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                {
-                    "feature": "Stock Management", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },                
-                {
-                    "feature": "Reports", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                }, 
-                 {
-                    "feature": "Products", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },               
-
-                # Add all other features here...
+                {"feature": f, "can_read": 1, "can_create": 1,
+                 "can_update": 1, "can_delete": 1, "can_submit": 1}
+                for f in ["Dashboard", "POS", "Quotations", "Sales", "Products",
+                          "Stock Management", "Payment Entries", "Reports", "Settings", "Printer"]
             ]
-        })
-        admin_profile.insert(ignore_permissions=True)
-        frappe.db.commit()
-    
-    # Cashier Profile
-    if not frappe.db.exists("User Rights Profile", "Cashier"):
-        cashier_profile = frappe.get_doc({
-            "doctype": "User Rights Profile",
+        },
+        {
             "profile_name": "Cashier",
             "is_admin": 0,
             "permissions": [
-                {
-                    "feature": "POS", "can_read": 1, "can_create": 1,
-                    "can_update": 0, "can_delete": 0, "can_submit": 1
-                },
-                                {
-                    "feature": "Sales", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },
-                {
-                    "feature": "Printer", "can_read": 1, "can_create": 1,
-                    "can_update": 1, "can_delete": 1, "can_submit": 1
-                },               
-                # Add other features as required
+                {"feature": "POS", "can_read": 1, "can_create": 1, "can_update": 0, "can_delete": 0, "can_submit": 1},
+                {"feature": "Sales", "can_read": 1, "can_create": 1, "can_update": 1, "can_delete": 1, "can_submit": 1},
+                {"feature": "Printer", "can_read": 1, "can_create": 1, "can_update": 1, "can_delete": 1, "can_submit": 1}
             ]
-        })
-        cashier_profile.insert(ignore_permissions=True)
+        }
+    ]
+
+    for profile in default_profiles:
+        doc = frappe.get_doc("User Rights Profile", profile["profile_name"]) \
+            if frappe.db.exists("User Rights Profile", profile["profile_name"]) else frappe.new_doc("User Rights Profile")
+        
+        doc.profile_name = profile["profile_name"]
+        doc.is_admin = profile["is_admin"]
+
+        # Add missing permissions only
+        existing_features = [p.feature for p in doc.permissions]
+        for perm in profile["permissions"]:
+            if perm["feature"] not in existing_features:
+                doc.append("permissions", perm)
+
+        doc.save(ignore_permissions=True)
         frappe.db.commit()
+        print(f"Profile created/updated: {profile['profile_name']}")
