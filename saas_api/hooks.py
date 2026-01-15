@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "saas_api.install.before_install"
-after_install = "saas_api.www.api.add_fields_on_install"
+
 
 # Uninstallation
 # ------------
@@ -241,12 +241,17 @@ after_install = "saas_api.www.api.add_fields_on_install"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+after_install = [
+    "saas_api.www.api.add_fields_on_install",
+    "saas_api.utils.create_default_user_rights",
+    "saas_api.user.assign_admin_profile"
+]
+patches = [
+   "saas_api.patches.add_user_rights_profile",
+   "saas_api.patches.create_default_profiles"
+]
 
-
-
-after_install = "saas_api.utils.create_default_user_rights"
-after_install = "saas_api.user.assign_admin_profile"
-boot = "saas_api.utils.create_default_user_rights"
+boot = "utils.create_default_user_rights"
 doc_events = {
     # "Item": {
     #     "before_insert": "saas_api.www.on_before.item_before_insert"
