@@ -275,28 +275,12 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Customer"]],
+            ["dt", "in", ["Customer", "User", "Item"]],
             ["fieldname", "in", [
-                "custom_cost_center",
-                "custom_warehouse",
-            ]]
-        ]
-    },
-     {
-        "dt": "Custom Field",
-        "filters": [
-            ["dt", "in", ["User"]]
-        ]
-    },
-    {
-        "dt": "Custom Field",
-        "filters": [
-            ["dt", "in", ["Customer", "User", "Item"]], # Added Item here
-            ["fieldname", "in", [
-                "custom_cost_center",
-                "custom_warehouse",
-                "user_rights_profile",
-                "simple_code"  # Added your new fieldname here
+                "custom_cost_center", 
+                "custom_warehouse", 
+                "user_rights_profile", 
+                "simple_code"
             ]]
         ]
     }
