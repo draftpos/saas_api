@@ -243,13 +243,13 @@ app_license = "mit"
 # }
 after_install = [
     "saas_api.www.api.add_fields_on_install",
-    "saas_api.utils.create_default_user_rights",
-    "saas_api.user.assign_admin_profile"
+    # "saas_api.utils.create_default_user_rights",
+    # "saas_api.user.assign_admin_profile"
 ]
-patches = [
-   "saas_api.patches.add_user_rights_profile",
-   "saas_api.patches.create_default_profiles"
-]
+# patches = [
+#    "saas_api.patches.add_user_rights_profile",
+#    "saas_api.patches.create_default_profiles"
+# ]
 
 boot = "utils.create_default_user_rights"
 doc_events = {
