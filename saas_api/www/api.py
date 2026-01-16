@@ -120,6 +120,9 @@ def create_item():
         # Auto-generate item code
         # item_code = generate_item_code()
         item_code = data.get("item_code")
+        min_tax_val = data.get("min_tax_val")
+        max_tax_val = data.get("max_tax_val")
+        tax_cat = data.get("tax_category")
         # Ensure Item Group exists
         if not frappe.db.exists("Item Group", item_group):
             group = frappe.get_doc({
@@ -155,8 +158,8 @@ def create_item():
         # Add tax row if tax_template is provided
         if tax_template:
             if frappe.db.exists("Item Tax Template", tax_template):
-                template_doc = frappe.get_doc("Item Tax Template", tax_template)
-
+                # template_doc = frappe.get_doc("Item Tax Template", tax_template)
+                template_doc = frappe.db.get_value("Item Tax Template", filters={}, fieldname="name", order_by="creation asc" )
                 # Default values
                 tax_rate_value = 0
                 tax_category = getattr(template_doc, "tax_category", "")
@@ -171,14 +174,13 @@ def create_item():
                 # Append tax row to the Item’s taxes child table
                 item.append("taxes", {
                     "item_tax_template": template_doc.name,
-                    "tax_category": tax_category,
+                    "tax_category": tax_cat,
                     "valid_from": getattr(template_doc, "valid_from", None),
-                    "minimum_net_rate": tax_rate_value,
-                    "maximum_net_rate": tax_rate_value
+                    "minimum_net_rate": min_tax_val,
+                    "maximum_net_rate": max_tax_val
                 })
             else:
                 frappe.log_error(f"Item Tax Template '{tax_template}' not found", "create_item API")
-
 
         item.flags.ignore_permissions = True
         item.insert()
