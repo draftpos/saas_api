@@ -157,30 +157,39 @@ def create_item():
 
         # Add tax row if tax_template is provided
         if tax_template:
-            if frappe.db.exists("Item Tax Template", tax_template):
-                # template_doc = frappe.get_doc("Item Tax Template", tax_template)
-                template_doc = frappe.db.get_value("Item Tax Template", filters={}, fieldname="name", order_by="creation asc" )
-                # Default values
-                tax_rate_value = 0
-                tax_category = getattr(template_doc, "tax_category", "")
+       
+            template_doc = frappe.db.get_value("Item Tax Template", filters={}, order_by="creation asc" )
+            first_template_name = frappe.db.get_value("Item Tax Template", 
+                                             filters={}, 
+                                             fieldname="name", 
+                                             order_by="creation asc")
+    
+            if first_template_name:
+                # 2. Fetch the actual Document object so you can see child tables (taxes)
+                template_doc = frappe.get_doc("Item Tax Template", first_template_name)
 
-                # If the template has tax rates, get the first one
-                if hasattr(template_doc, "taxes") and template_doc.taxes:
+                # 3. Extract values safely
+                tax_rate_value = 0
+
+                if template_doc.taxes:
                     tax_rate_value = template_doc.taxes[0].tax_rate or 0
 
+                # 4. Append to the Item
                 if not hasattr(item, "taxes"):
                     item.taxes = []
 
-                # Append tax row to the Item’s taxes child table
                 item.append("taxes", {
                     "item_tax_template": template_doc.name,
                     "tax_category": tax_cat,
-                    "valid_from": getattr(template_doc, "valid_from", None),
-                    "minimum_net_rate": min_tax_val,
+                    "valid_from": getattr(first_template_name, "valid_from", None),
+                    "minimum_net_rate": min_tax_val, # Ensure these are defined in your API
                     "maximum_net_rate": max_tax_val
                 })
             else:
-                frappe.log_error(f"Item Tax Template '{tax_template}' not found", "create_item API")
+                frappe.log_error("No Item Tax Templates found in system", "tax_template_logic")
+
+        else:
+            frappe.log_error(f"Item Tax Template '{tax_template}' not found", "create_item API")
 
         item.flags.ignore_permissions = True
         item.insert()
