@@ -275,11 +275,11 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Customer", "Item"]],
+                   ["dt", "=", "Customer"],
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",
-                "custom_simple_code"
+          
             ]]
         ]
     }
