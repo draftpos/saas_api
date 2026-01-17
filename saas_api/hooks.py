@@ -279,7 +279,7 @@ fixtures = [
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",
-                "simple_code"
+                "custom_simple_code"
             ]]
         ]
     }
