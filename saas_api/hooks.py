@@ -276,6 +276,7 @@ fixtures = [
         "dt": "Custom Field",
         "filters": [
                    ["dt", "=", "Customer"],
+         
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",

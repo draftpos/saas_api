@@ -902,25 +902,25 @@ def login(usr, pwd, timezone):
     default_company = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Company", "is_default": 1}, "for_value")
     user_rights_profile = None
 
-    if user.user_rights_profile:
-        profile = frappe.get_doc("User Rights Profile", user.user_rights_profile)
+    # if user.user_rights_profile:
+    #     profile = frappe.get_doc("User Rights Profile", user.user_rights_profile)
 
-        user_rights_profile = {
-        "name": profile.name,
-        "profile_name": profile.profile_name,
-        "is_admin": profile.is_admin,
-        "permissions": [
-            {
-                "feature": p.feature,
-                "can_read": p.can_read,
-                "can_create": p.can_create,
-                "can_update": p.can_update,
-                "can_delete": p.can_delete,
-                "can_submit": p.can_submit,
-            }
-            for p in profile.permissions
-            ]
-        }
+    #     user_rights_profile = {
+    #     "name": profile.name,
+    #     "profile_name": profile.profile_name,
+    #     "is_admin": profile.is_admin,
+    #     "permissions": [
+    #         {
+    #             "feature": p.feature,
+    #             "can_read": p.can_read,
+    #             "can_create": p.can_create,
+    #             "can_update": p.can_update,
+    #             "can_delete": p.can_delete,
+    #             "can_submit": p.can_submit,
+    #         }
+    #         for p in profile.permissions
+    #         ]
+    #     }
 
     # Warehouse items
     warehouse_items = []
@@ -960,7 +960,7 @@ def login(usr, pwd, timezone):
         "cost_center": default_cost_center,
         "company":default_company,
         "default_customer": default_customer,
-        "user_rights": user_rights_profile,
+        # "user_rights": user_rights_profile,
         "customers": customers,
         "warehouse_items": warehouse_items,
         "time_zone": {"client": local_tz, "server": erpnext_tz},
