@@ -2461,3 +2461,61 @@ def get_sales_invoices(
     return invoices 
 
     #sakles
+
+
+@frappe.whitelist()
+def assign_user_permissions(user, company=None, warehouse=None, cost_center=None, customer=None):
+    permissions = {
+        "Company": company,
+        "Warehouse": warehouse,
+        "Cost Center": cost_center,
+        "Customer": customer,
+    }
+
+    for doctype, value in permissions.items():
+        if not value:
+            continue
+
+        if not frappe.db.exists(
+            "User Permission",
+            {
+                "user": user,
+                "allow": doctype,
+                "for_value": value,
+            }
+        ):
+            frappe.get_doc({
+                "doctype": "User Permission",
+                "user": user,
+                "allow": doctype,
+                "for_value": value,
+                "apply_to_all_doctypes": 1,
+                  "is_default":1
+            }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+
+
+
+@frappe.whitelist()
+def get_missing_user_permissions(user):
+    required = {
+        "Company": None,
+        "Warehouse": None,
+        "Cost Center": None,
+        "Customer": None,
+    }
+
+    existing = frappe.get_all(
+        "User Permission",
+        filters={
+            "user": user,
+            "allow": ["in", list(required.keys())],
+        },
+        fields=["allow", "for_value"],
+    )
+
+    for perm in existing:
+        required.pop(perm.allow, None)
+
+    return list(required.keys())
