@@ -1224,28 +1224,28 @@ def get_user_data(user=None):
             {"user": user_doc.name, "allow": "Company", "is_default": 1},
             "for_value"
         )
-        user_rights_profile = None
+        # user_rights_profile = None
 
-        if user_doc.user_rights_profile:
-            profile = frappe.get_doc("User Rights Profile", user_doc.user_rights_profile)
+        # if user_doc.user_rights_profile:
+        #     profile = frappe.get_doc("User Rights Profile", user_doc.user_rights_profile)
 
-            user_rights_profile = {
-            "name": profile.name,
-            "profile_name": profile.profile_name,
-            "is_admin": profile.is_admin,
-            "permissions": [
-                {
-                    "feature": p.feature,
-                    "can_read": p.can_read,
-                    "can_create": p.can_create,
-                    "can_update": p.can_update,
-                    "can_delete": p.can_delete,
-                    "can_submit": p.can_submit,
-                }
-                for p in profile.permissions
-                ]
-            }
-        # Warehouse items
+        #     user_rights_profile = {
+        #     "name": profile.name,
+        #     "profile_name": profile.profile_name,
+        #     "is_admin": profile.is_admin,
+        #     "permissions": [
+        #         {
+        #             "feature": p.feature,
+        #             "can_read": p.can_read,
+        #             "can_create": p.can_create,
+        #             "can_update": p.can_update,
+        #             "can_delete": p.can_delete,
+        #             "can_submit": p.can_submit,
+        #         }
+        #         for p in profile.permissions
+        #         ]
+        #     }
+        # # Warehouse items
         warehouse_items = []
         if default_warehouse:
             warehouse_items = frappe.db.sql("""
@@ -1290,7 +1290,7 @@ def get_user_data(user=None):
                 "warehouse_items": warehouse_items,
                 "role": user_doc.get("role_select") or "",
                 "pin": user_doc.get("pin"),
-                "user_rights": user_rights_profile
+                # "user_rights": user_rights_profile
                 
             }
         }
