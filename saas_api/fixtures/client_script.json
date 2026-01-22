@@ -1,0 +1,13 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "User",
+  "enabled": 1,
+  "modified": "2026-01-22 14:00:41.599821",
+  "module": "Saas Api",
+  "name": "settings user permmission",
+  "script": "frappe.ui.form.on('User', {\n  validate(frm) {\n   console.log(`script ran `)\n  \n\n    frappe.call({\n      method: 'saas_api.www.api.get_missing_user_permissions',\n      args: { user: frm.doc.name },\n      callback(r) {\n        const missing = r.message || [];\n         console.log(`${missing} fields are not available `)\n        if (!missing.length) {\n          return; \n        }\n                 console.log(`passe fields are not available `)\n\n        const fields = [];\n\n        if (missing.includes('Company')) {\n            console.log(`Company fields are not available `)\n          fields.push({\n            fieldname: 'company',\n            label: 'Company',\n            fieldtype: 'Link',\n            options: 'Company',\n            reqd: 1\n          });\n        }\n\n        if (missing.includes('Warehouse')) {\n          fields.push({\n            fieldname: 'warehouse',\n            label: 'Warehouse',\n            fieldtype: 'Link',\n            options: 'Warehouse',\n            reqd: 1\n          });\n        }\n\n        if (missing.includes('Cost Center')) {\n          fields.push({\n            fieldname: 'cost_center',\n            label: 'Cost Center',\n            fieldtype: 'Link',\n            options: 'Cost Center',\n            reqd: 1\n          });\n        }\n\n        if (missing.includes('Customer')) {\n          fields.push({\n            fieldname: 'customer',\n            label: 'Customer',\n            fieldtype: 'Link',\n            options: 'Customer',\n            reqd: 1\n          });\n        }\n\n        frappe.prompt(\n          fields,\n          function (values) {\n            frappe.call({\n              method: 'saas_api.www.api.assign_user_permissions',\n              args: {\n                user: frm.doc.name,\n                ...values\n              }\n            });\n          },\n          __('Assign Default Permissions'),\n          __('Save')\n        );\n      }\n    });\n  }\n});\n",
+  "view": "Form"
+ }
+]

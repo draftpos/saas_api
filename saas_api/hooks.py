@@ -272,16 +272,26 @@ permission_query_conditions = {
 }
 
 fixtures = [
+    # Existing Custom Fields fixture
     {
         "dt": "Custom Field",
         "filters": [
-                   ["dt", "=", "Customer"],
-         
+            ["dt", "=", "Customer"],
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",
-          
+            ]]
+        ]
+    },
+    {
+        "dt": "Client Script",
+        "filters": [
+            ["name", "in", [
+                "settings user permmission", 
+               
             ]]
         ]
     }
 ]
+
+
