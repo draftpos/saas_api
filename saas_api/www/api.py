@@ -218,16 +218,17 @@ def create_supplier():
     try:
         data = json.loads(frappe.request.data or "{}")
         supplier_full_name=data.get("supplier_full_name")
+        supplier_name = data.get("supplier_name")
 
-        if not supplier_full_name:
+        if not supplier_full_name or not supplier_name:
             frappe.local.response["http_status_code"] = 400
             return {
                 "status": "error",
-                "message": "Missing required field: supplier_full_name."
+                "message": "Missing required field: supplier_full_name or supplier_name."
             }
 
         # Auto-generate supplier code
-        supplier_name = generate_supplier_code()
+        
         # Create Supplier
         supplier = frappe.get_doc({
             "doctype": "Supplier",
