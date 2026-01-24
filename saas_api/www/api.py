@@ -2361,7 +2361,7 @@ def get_stock_reconciliation_with_items(from_date, to_date):
 @frappe.whitelist()
 def get_stock_purchases_with_items(from_date, to_date):
     purchase_receipts = frappe.get_all(
-        "Purchase Receipt",
+        "Purchase Invoice",
         filters={
             "posting_date": ["between", [from_date, to_date]],
             "docstatus": 1
@@ -2384,7 +2384,7 @@ def get_stock_purchases_with_items(from_date, to_date):
     names = [pr.name for pr in purchase_receipts]
 
     items = frappe.get_all(
-        "Purchase Receipt Item",
+        "Purchase Invoice Item",
         filters={"parent": ["in", names]},
         fields=[
             "parent",
