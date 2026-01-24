@@ -218,16 +218,17 @@ def create_supplier():
     try:
         data = json.loads(frappe.request.data or "{}")
         supplier_full_name=data.get("supplier_full_name")
+        supplier_name = data.get("supplier_name")
 
-        if not supplier_full_name:
+        if not supplier_full_name or not supplier_name:
             frappe.local.response["http_status_code"] = 400
             return {
                 "status": "error",
-                "message": "Missing required field: supplier_full_name."
+                "message": "Missing required field: supplier_full_name or supplier_name."
             }
 
         # Auto-generate supplier code
-        supplier_name = generate_supplier_code()
+        
         # Create Supplier
         supplier = frappe.get_doc({
             "doctype": "Supplier",
@@ -295,7 +296,7 @@ def create_item_group():
         group_name_for_item=data.get("group_name_for_item")
         parent_item_group = data.get("parent_item_group", "All Item Groups")
 
-        if not group_name_for_item:
+        if not group_name_for_item or not item_group_name:
             frappe.local.response["http_status_code"] = 400
             return {
                 "status": "error",
@@ -2361,7 +2362,7 @@ def get_stock_reconciliation_with_items(from_date, to_date):
 @frappe.whitelist()
 def get_stock_purchases_with_items(from_date, to_date):
     purchase_receipts = frappe.get_all(
-        "Purchase Receipt",
+        "Purchase Invoice",
         filters={
             "posting_date": ["between", [from_date, to_date]],
             "docstatus": 1
@@ -2384,7 +2385,7 @@ def get_stock_purchases_with_items(from_date, to_date):
     names = [pr.name for pr in purchase_receipts]
 
     items = frappe.get_all(
-        "Purchase Receipt Item",
+        "Purchase Invoice Item",
         filters={"parent": ["in", names]},
         fields=[
             "parent",
