@@ -253,9 +253,12 @@ after_install = [
 
 boot = "utils.create_default_user_rights"
 doc_events = {
-    # "Item": {
-    #     "before_insert": "saas_api.www.on_before.item_before_insert"
-    # },
+     "User": {
+        "after_insert": "saas_api.www.on_before.after_insert"
+    },
+    "Item": {
+        "before_insert": "saas_api.www.on_before.item_before_insert"
+    },
     # "Supplier": {
     #     "before_insert": "saas_api.www.on_before.supplier_before_insert"
     # },
