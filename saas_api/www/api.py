@@ -296,7 +296,7 @@ def create_item_group():
         group_name_for_item=data.get("group_name_for_item")
         parent_item_group = data.get("parent_item_group", "All Item Groups")
 
-        if not group_name_for_item:
+        if not group_name_for_item or not item_group_name:
             frappe.local.response["http_status_code"] = 400
             return {
                 "status": "error",
