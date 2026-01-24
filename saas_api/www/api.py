@@ -6,6 +6,7 @@ from frappe.utils import escape_html,cstr
 from frappe.auth import LoginManager
 from frappe import throw, msgprint, _
 from frappe.utils.background_jobs import enqueue
+from frappe.model.mapper import get_mapped_doc
 import requests
 import random
 import json
@@ -208,6 +209,7 @@ def create_item():
         frappe.log_error(title="Item API Error", message=frappe.get_traceback())
         frappe.local.response["http_status_code"] = 500
         return {"status": "error", "message": str(e)}
+
 
 
 @frappe.whitelist(allow_guest=True)
@@ -515,7 +517,6 @@ def update_quotation(quotation_name, customer=None, items=None, transaction_date
         return {"status": "error", "message": str(e)}
 
 
-from frappe.model.mapper import get_mapped_doc
 @frappe.whitelist()
 def create_invoice_from_quotation(quotation_name):
     invoice = get_mapped_doc(
@@ -2275,8 +2276,6 @@ def set_user_permission(user, doctype, value):
 @frappe.whitelist()
 def run_sales_by_cost_center(filters):
     filters = frappe.parse_json(filters)
-
-    # Hard validation
     if not filters.get("company"):
         frappe.throw("Company is required")
 
@@ -2358,6 +2357,57 @@ def get_stock_reconciliation_with_items(from_date, to_date):
         r["items"] = items_map.get(r.name, [])
 
     return reconciliations
+
+@frappe.whitelist()
+def get_stock_purchases_with_items(from_date, to_date):
+    purchase_receipts = frappe.get_all(
+        "Purchase Receipt",
+        filters={
+            "posting_date": ["between", [from_date, to_date]],
+            "docstatus": 1
+        },
+        fields=[
+            "name",
+            "supplier",
+            "company",
+            "posting_date",
+            "total_qty",
+            "grand_total",
+            "net_total",
+            "cost_center"
+        ]
+    )
+
+    if not purchase_receipts:
+        return []
+
+    names = [pr.name for pr in purchase_receipts]
+
+    items = frappe.get_all(
+        "Purchase Receipt Item",
+        filters={"parent": ["in", names]},
+        fields=[
+            "parent",
+            "item_code",
+            "item_name",
+            "warehouse",
+            "qty",
+            "received_qty",
+            "rate",
+            "amount",
+            "valuation_rate",
+            "stock_uom"
+        ]
+    )
+
+    items_map = {}
+    for i in items:
+        items_map.setdefault(i.parent, []).append(i)
+
+    for pr in purchase_receipts:
+        pr["items"] = items_map.get(pr.name, [])
+
+    return purchase_receipts
 
 @frappe.whitelist()
 def get_sales_invoices(

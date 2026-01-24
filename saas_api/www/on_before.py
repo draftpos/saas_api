@@ -1,8 +1,22 @@
 import frappe
-from .api import generate_item_code, generate_supplier_code, generate_item_group_code
+from .api import generate_item_code, generate_supplier_code, generate_item_group_code,set_defaults_for_user
 
 def item_before_insert(doc, method):
-    doc.item_code = generate_item_code()
+    if not doc.item_name:
+        return
+
+    exists = frappe.db.exists(
+        "Item",
+        {
+            "item_name": doc.item_name,
+            "name": ["!=", doc.name]  # important for updates
+        }
+    )
+
+    if exists:
+        frappe.throw(
+            f"Item with name <b>{doc.item_name}</b> already exists."
+        )
     if not doc.item_group:
         doc.item_group = "All Item Groups"
     if not frappe.db.exists("Item Group", doc.item_group):
@@ -51,3 +65,18 @@ def item_group_permission_query(user):
     if not user or user == "Administrator":
         return ""
     return f"`tabItem Group`.owner = '{user}'"
+
+
+
+def after_insert(doc, method):
+    """
+    Apply defaults immediately after a new User is created
+    """
+    if not doc.email:
+        return
+
+    # Avoid applying defaults for Administrator or Guest
+    # if doc.name in ("Administrator", "Guest"):
+    #     return
+
+    set_defaults_for_user(doc.email)
