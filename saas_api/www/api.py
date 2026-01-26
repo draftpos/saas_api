@@ -94,6 +94,7 @@ def create_item():
         is_stock_item = int(data.get("is_stock_item", 1))
         tax_template=data.get("tax_template")
         allow_sales=data.get("allow_sales")
+        is_sales_item=int(data.get("is_sales_item", 1))
 
         # Validate required fields
         if not item_name or not item_group or not stock_uom:
@@ -168,7 +169,6 @@ def create_item():
             if first_template_name:
                 # 2. Fetch the actual Document object so you can see child tables (taxes)
                 template_doc = frappe.get_doc("Item Tax Template", first_template_name)
-
                 # 3. Extract values safely
                 tax_rate_value = 0
 
@@ -1912,7 +1912,8 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
         user.add_roles(*all_roles)
 
         frappe.db.commit()
-        set_defaults_for_user()
+        set_defaults_for_user(email)
+        ensure_default_customer_for_user(email)
 
         create_response(
             status=200,
@@ -1937,6 +1938,93 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
             message=str(e)
         )
         return
+
+
+def ensure_default_customer_for_user(user):
+    """
+    Ensures a 'Default' Customer exists and assigns:
+    - default customer for logged-in user
+    - user permission for customer
+    - default cost center into Customer.custom_cost_center
+    """
+
+    customer_name = "Default"
+  
+            # 1. Get default company from Global Defaults
+    default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+    if not default_company:
+            return "No default company set in Global Defaults"
+
+        # 3. Find Cost Center starting with 'Main'
+    default_cost_center = frappe.db.get_value(
+            "Cost Center",
+            {"company": default_company, "cost_center_name": ["like", "Main%"]},
+            "name"
+        )
+    main_warehouse = frappe.db.get_value(
+            "Warehouse",
+            {"company": default_company, "warehouse_name": ["like", "Stores%"]},
+            "name"
+        )
+
+    # 2. Create or update Customer
+    if not frappe.db.exists("Customer", customer_name):
+        customer = frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": customer_name,
+            "customer_type": "Individual",
+            "customer_group": frappe.db.get_value(
+                "Customer Group", {"is_group": 0}, "name"
+            ) or "Individual",
+            "territory": frappe.db.get_value(
+                "Territory", {"is_group": 0}, "name"
+            ) or "All Territories",
+            "custom_cost_center": default_cost_center,
+             "custom_warehouse": main_warehouse
+        })
+        customer.flags.ignore_permissions = True
+        customer.insert()
+    else:
+        customer = frappe.get_doc("Customer", customer_name)
+
+        # Ensure cost center is set if missing
+        if default_cost_center and not customer.get("custom_cost_center"):
+            customer.custom_cost_center = default_cost_center
+            customer.flags.ignore_permissions = True
+            customer.save()
+
+    # 3. Set default customer for logged-in user
+    frappe.defaults.set_user_default(
+        "customer",
+        customer.name,
+        user=user
+    )
+
+    # 4. Add User Permission if missing
+    if not frappe.db.exists(
+        "User Permission",
+        {
+            "user": user,
+            "allow": "Customer",
+            "for_value": customer.name,
+            "is_default": 1,
+            "apply_to_all_doctypes": 1,
+        }
+    ):
+        perm = frappe.get_doc({
+            "doctype": "User Permission",
+            "user": user,
+            "allow": "Customer",
+            "for_value": customer.name,
+            "apply_to_all_doctypes": 1,
+            "is_default": 1
+        })
+        perm.flags.ignore_permissions = True
+        perm.insert()
+
+
+
+
 @frappe.whitelist()
 def get_currencies_with_exchange_involvement():
     try:
