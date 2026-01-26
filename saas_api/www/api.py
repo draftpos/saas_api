@@ -1759,11 +1759,6 @@ def get_users():
             # Add cost center and warehouse to user data
             user["cost_center"] = user_cost_center
             user["warehouse"] = user_warehouse
-            
-            # Get user roles
-            user_doc = frappe.get_doc("User", user["name"])
-            user["roles"] = [role.role for role in user_doc.roles]
-            
             filtered_users.append(user)
 
         return {
