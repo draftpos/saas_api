@@ -149,7 +149,7 @@ def create_item():
         "doctype": "Item",
         "item_code": item_code,
         "item_name": item_name,
-		"simple_code": simple_code,
+		"custom_simple_code": simple_code,
         "item_group": item_group,
         "stock_uom": stock_uom,
         "is_stock_item": is_stock_item,
