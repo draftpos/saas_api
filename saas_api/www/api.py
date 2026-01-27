@@ -87,7 +87,7 @@ def create_item():
         data = json.loads(frappe.request.data or "{}")
 
         item_name = data.get("item_name")
-        # simple_code = data.get("simple_code")
+        simple_code = data.get("simple_code")
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
         valuation_rate = float(data.get("valuation_rate", 0))
@@ -149,7 +149,7 @@ def create_item():
         "doctype": "Item",
         "item_code": item_code,
         "item_name": item_name,
-#"simple_code": simple_code,
+		"simple_code": simple_code,
         "item_group": item_group,
         "stock_uom": stock_uom,
         "is_stock_item": is_stock_item,
