@@ -1292,7 +1292,7 @@ def get_user_data(user=None):
                 "warehouse_items": warehouse_items,
                 "role": user_doc.get("role_select") or "",
                 "pin": user_doc.get("pin"),
-                # "user_rights": user_rights_profile
+                "user_rights": user_rights_profile
                 
             }
         }
