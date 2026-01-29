@@ -1,7 +1,7 @@
 import frappe
 
 def execute():
-    # Check if doctype exists first
+
     if not frappe.db.exists("DocType", "User Rights Profile"):
         frappe.log_error("User Rights Profile doctype not found. Skipping patch.", "Patch Warning")
         return

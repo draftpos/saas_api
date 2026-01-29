@@ -1,0 +1,135 @@
+[
+  {
+    "doctype": "User Rights Profile",
+    "name": "Admin",
+    "profile_name": "Admin",
+    "is_admin": 1,
+    "permissions": [
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Dashboard",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "POS",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Quotations",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Sales",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Products",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Stock Management",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Payment Entries",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Reports",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Settings",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Printer",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      }
+    ]
+  },
+  {
+    "doctype": "User Rights Profile",
+    "name": "Cashier",
+    "profile_name": "Cashier",
+    "is_admin": 0,
+    "permissions": [
+      {
+        "doctype": "User Rights Permission",
+        "feature": "POS",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 0,
+        "can_delete": 0,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Sales",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      },
+      {
+        "doctype": "User Rights Permission",
+        "feature": "Printer",
+        "can_read": 1,
+        "can_create": 1,
+        "can_update": 1,
+        "can_delete": 1,
+        "can_submit": 1
+      }
+    ]
+  }
+]
