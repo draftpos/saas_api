@@ -1,0 +1,21 @@
+name: Frappe Update
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Frappe Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: frappe
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/frappe/frappe-bench/saas_api
+            ./update_frappe.sh
