@@ -17,5 +17,6 @@ jobs:
           username: frappe
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/frappe/frappe-bench/saas_api
+            cd /home/frappe/frappe-bench/
+            chmod +x update_frappe.sh
             ./update_frappe.sh
