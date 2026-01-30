@@ -999,7 +999,7 @@ def login(usr, pwd, timezone):
 #         "doctype": "Sales Invoice",
 #         "customer": customer,
 #         "company": company,
-#         "currency": "USD",  # make sure this matches your default_currency or price list
+#         "currency": "USD",  # make sure this matches your default_currency or price lt
 #         "conversion_rate": 1.0,  # if USD to USD, else fetch correct rate
 #         "set_warehouse": warehouse,
 #         "cost_center": cost_center,
