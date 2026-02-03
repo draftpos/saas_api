@@ -2647,6 +2647,7 @@ def get_missing_user_permissions(user):
 
     return list(required.keys())
 
+from frappe import _
 
 @frappe.whitelist(methods=["POST"])
 def create_item_group():
@@ -2680,4 +2681,3 @@ def create_item_group():
         "status": "success",
         "name": doc.name
     }
-
