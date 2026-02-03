@@ -19,7 +19,7 @@ from frappe.utils import cint
 import re
 from frappe.utils import validate_email_address
 from frappe.utils import flt, today, add_days,getdate
-
+import traceback
 import os
 from frappe.desk.query_report import run
 
@@ -999,7 +999,7 @@ def login(usr, pwd, timezone):
 #         "doctype": "Sales Invoice",
 #         "customer": customer,
 #         "company": company,
-#         "currency": "USD",  # make sure this matches your default_currency or price list
+#         "currency": "USD",  # make sure this matches your default_currency or price lt
 #         "conversion_rate": 1.0,  # if USD to USD, else fetch correct rate
 #         "set_warehouse": warehouse,
 #         "cost_center": cost_center,
@@ -1024,14 +1024,7 @@ def login(usr, pwd, timezone):
 #     si_doc.insert()
 #     a=si_doc.submit()
 #     return a
-import frappe
-import json
-import frappe
-import json
-import traceback
-import frappe
-import json
-import traceback
+
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2653,3 +2646,38 @@ def get_missing_user_permissions(user):
         required.pop(perm.allow, None)
 
     return list(required.keys())
+
+from frappe import _
+
+@frappe.whitelist(methods=["POST"])
+def create_item_group():
+    data = frappe.local.form_dict or {}
+
+    item_group_name = data.get("item_group_name")
+    parent_item_group = data.get("parent_item_group", "All Item Groups")
+
+    if not item_group_name:
+        frappe.throw(_("item_group_name is required"))
+
+    doc = frappe.get_doc({
+        "doctype": "Item Group",
+        "item_group_name": item_group_name,
+        "parent_item_group": parent_item_group,
+        "is_group": int(data.get("is_group", 0)),
+
+        # REQUIRED CUSTOM FIELD
+        "group_name_for_item": data.get("group_name_for_item") or item_group_name,
+
+        # Defaults
+        "default_income_account": data.get("default_income_account") or "Sales - YC",
+        "default_expense_account": data.get("default_expense_account") or "Cost of Goods Sold - YC",
+        "default_warehouse": data.get("default_warehouse") or "Stores - YC",
+    })
+
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "name": doc.name
+    }
