@@ -903,10 +903,20 @@ def login(usr, pwd, timezone):
     default_customer = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Customer", "is_default": 1}, "for_value")
     default_company = frappe.db.get_value("User Permission", {"user": user.name, "allow": "Company", "is_default": 1}, "for_value")
     user_rights_profile = None
-
+    DEFAULT_PROFILE_NAME = "Admin"
+    if not user.user_rights_profile:
+        if frappe.db.exists("User Rights Profile", DEFAULT_PROFILE_NAME):
+            user.user_rights_profile = DEFAULT_PROFILE_NAME
+            user.save(ignore_permissions=True)
+            frappe.db.commit()
+        else:
+            frappe.log_error(
+            f"Default User Rights Profile '{DEFAULT_PROFILE_NAME}' not found",
+            "Login User Rights Profile"
+        )
     if user.user_rights_profile:
         profile = frappe.get_doc("User Rights Profile", user.user_rights_profile)
-
+        
         user_rights_profile = {
         "name": profile.name,
         "profile_name": profile.profile_name,
