@@ -333,6 +333,7 @@ def create_item_group():
 @frappe.whitelist(allow_guest=True)
 def create_customer(
     customer_name,
+    customer_group,  # ✅ REQUIRED
     custom_trade_name=None,
     custom_customer_tin=None,
     custom_customer_vat=None,
@@ -347,18 +348,33 @@ def create_customer(
     customer_type="Individual",
     default_price_list=None,
     default_cost_center=None,
-
 ):
     try:
+        # -------------------------------
+        # VALIDATIONS
+        # -------------------------------
+        if not customer_group:
+            frappe.throw("Customer Group is required.")
+
+        if not frappe.db.exists("Customer Group", customer_group):
+            frappe.throw(f"Invalid Customer Group: {customer_group}")
+
         if not default_price_list:
             frappe.throw("Price List is required for this customer.")
+
         if not default_cost_center:
             frappe.throw("Cost center is required for this customer.")
+
         if not default_warehouse:
             frappe.throw("Warehouse is required for this customer.")
+
+        # -------------------------------
+        # CREATE CUSTOMER
+        # -------------------------------
         customer = frappe.get_doc({
             "doctype": "Customer",
             "customer_name": customer_name,
+            "customer_group": customer_group,  # ✅ FIX
             "customer_type": customer_type,
             "custom_trade_name": custom_trade_name,
             "custom_customer_tin": custom_customer_tin,
@@ -375,16 +391,17 @@ def create_customer(
             "default_price_list": default_price_list,
         })
 
-        # Ignore permission restrictions
         customer.insert(ignore_permissions=True)
         frappe.db.commit()
 
-        frappe.logger().info(f"✅ Customer created: {customer.name}")
-        return {"customer_id": customer.name}
+        return {
+            "success": True,
+            "customer_id": customer.name,
+        }
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Create Customer Error")
-        return {"error": str(e)}
+        frappe.throw(str(e))
 
 @frappe.whitelist()
 def create_quotation(customer, items,reference_number,cost_center):
