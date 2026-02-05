@@ -78,8 +78,6 @@ def generate_supplier_code():
         new_code = f"{prefix}{random_letters}-{next_num:03d}"
     return new_code
 
-
-
 @frappe.whitelist(allow_guest=True)
 def create_item():
     """POST: Create Item with auto-generated item_code (Guest-safe, no Stock Entry)"""
@@ -398,7 +396,6 @@ def create_customer(
             "success": True,
             "customer_id": customer.name,
         }
-
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Create Customer Error")
         frappe.throw(str(e))
