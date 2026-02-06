@@ -2226,17 +2226,20 @@ def add_supplier_full_name_field():
         return "Supplier Full Name field added successfully"
     return "Supplier Full Name field already exists"
 
-
 @frappe.whitelist()
 def add_reference_number_to_sales_invoice():
+    print("🚀 Starting add_reference_number_to_sales_invoice")
+
     module_path = frappe.get_module_path("accounts")
     json_path = os.path.join(
         module_path,
         "doctype/sales_invoice/sales_invoice.json"
     )
+    print(f"📂 JSON path: {json_path}")
 
     with open(json_path, "r") as f:
         data = json.load(f)
+    print(f"📄 Loaded {len(data.get('fields', []))} fields from JSON")
 
     new_field = {
         "fieldname": "reference_number",
@@ -2250,18 +2253,24 @@ def add_reference_number_to_sales_invoice():
     existing_fieldnames = [
         f["fieldname"] for f in data.get("fields", [])
     ]
+    print(f"📝 Existing fieldnames: {existing_fieldnames}")
 
     if new_field["fieldname"] not in existing_fieldnames:
+        print("➕ Adding new field 'reference_number'")
         data["fields"].append(new_field)
 
         with open(json_path, "w") as f:
             json.dump(data, f, indent=4)
+        print("💾 JSON updated")
 
         frappe.reload_doc("accounts", "doctype", "sales_invoice", force=True)
+        print("🔄 Reloaded Sales Invoice Doctype")
         frappe.clear_cache(doctype="Sales Invoice")
+        print("🧹 Cleared cache for Sales Invoice")
 
         return "Reference Number field added successfully"
 
+    print("ℹ️ Reference Number field already exists")
     return "Reference Number field already exists"
 
 
@@ -2705,7 +2714,7 @@ def create_item_group():
         "status": "success",
         "name": doc.name
     }
-    
+
 import frappe
 import traceback
 from frappe.utils import today
@@ -2736,7 +2745,7 @@ def cloud_invoice(**payload):
         # Idempotency: prevent duplicates by reference_number
         existing = frappe.db.get_value(
             "Sales Invoice",
-            {"custom_cloud_reference": payload["reference_number"]},
+            {"reference_number": payload["reference_number"]},
             "name"
         )
         if existing:
@@ -2761,7 +2770,7 @@ def cloud_invoice(**payload):
             "cost_center": payload["cost_center"],
             "taxes_and_charges": payload.get("taxes_and_charges"),
             "payments": payload.get("payments", []),
-            "custom_cloud_reference": payload["reference_number"],
+            "reference_number": payload["reference_number"],
             "items": [
                 {
                     "item_code": d.get("item_code"),
