@@ -2705,3 +2705,82 @@ def create_item_group():
         "status": "success",
         "name": doc.name
     }
+    
+import frappe
+import traceback
+from frappe.utils import today
+@frappe.whitelist(allow_guest=True)
+def cloud_invoice(**payload):
+    """
+    Cloud-safe endpoint for creating Sales Invoices.
+    Accepts plain JSON in POST body (no wrapping needed).
+    Example JSON keys:
+      - customer
+      - company
+      - items (list of dicts with item_code, qty, rate, warehouse, etc.)
+      - cost_center
+      - reference_number
+      - posting_date, posting_time, due_date, currency, conversion_rate
+    """
+
+    try:
+        if not payload:
+            frappe.throw("Payload is required")
+
+        # Required fields
+        required = ["customer", "company", "items", "cost_center", "reference_number"]
+        for f in required:
+            if f not in payload:
+                frappe.throw(f"{f} is mandatory")
+
+        # Idempotency: prevent duplicates by reference_number
+        existing = frappe.db.get_value(
+            "Sales Invoice",
+            {"custom_cloud_reference": payload["reference_number"]},
+            "name"
+        )
+        if existing:
+            return {"status": "exists", "invoice_name": existing}
+
+        # Default dates
+        posting_date = payload.get("posting_date") or today()
+        posting_time = payload.get("posting_time")
+        due_date = payload.get("due_date") or posting_date
+
+        invoice = frappe.get_doc({
+            "doctype": "Sales Invoice",
+            "company": payload["company"],
+            "customer": payload["customer"],
+            "posting_date": posting_date,
+            "posting_time": posting_time,
+            "due_date": due_date,
+            "currency": payload.get("currency") or "USD",
+            "conversion_rate": payload.get("conversion_rate") or 1,
+            "update_stock": payload.get("update_stock", 1),
+            "set_warehouse": payload.get("set_warehouse"),
+            "cost_center": payload["cost_center"],
+            "taxes_and_charges": payload.get("taxes_and_charges"),
+            "payments": payload.get("payments", []),
+            "custom_cloud_reference": payload["reference_number"],
+            "items": [
+                {
+                    "item_code": d.get("item_code"),
+                    "item_name": d.get("item_name"),
+                    "qty": d.get("qty") or 0,
+                    "rate": d.get("rate") or 0,
+                    "warehouse": d.get("warehouse"),
+                    "cost_center": d.get("cost_center"),
+                    "income_account": d.get("income_account")
+                }
+                for d in payload["items"]
+            ]
+        })
+
+        invoice.insert(ignore_permissions=True)
+        invoice.submit()
+
+        return {"status": "success", "invoice_name": invoice.name}
+
+    except Exception:
+        frappe.log_error(title="Cloud Invoice Error", message=traceback.format_exc())
+        return {"status": "error", "message": traceback.format_exc()}
