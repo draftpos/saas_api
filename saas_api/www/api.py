@@ -2788,7 +2788,8 @@ def cloud_invoice(**payload):
         invoice.insert(ignore_permissions=True)
         invoice.submit()
 
-        return {"status": "success", "invoice_name": invoice.name}
+        # return {"status": "success", "invoice_name": invoice.name}
+        return {"status": "success", "data": {"name": invoice.name}}
 
     except Exception:
         frappe.log_error(title="Cloud Invoice Error", message=traceback.format_exc())
