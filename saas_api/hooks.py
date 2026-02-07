@@ -242,7 +242,7 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 after_install = [
-    "saas_api.www.api.add_reference_number_to_sales_invoice",
+    "saas_api.www.api.add_user_rights_profile",
     # "saas_api.utils.create_default_user_rights",
     # "saas_api.user.assign_admin_profile"
 ]
