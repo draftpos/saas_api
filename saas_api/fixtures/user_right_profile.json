@@ -129,7 +129,152 @@
         "can_update": 1,
         "can_delete": 1,
         "can_submit": 1
-      }
+      },
+      {
+  "doctype": "User Rights Permission",
+  "feature": "Purchases",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Stock Adjustment",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Stock Transfer",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Item Group",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Sales History",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Customer List",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Cashier Dashboard",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Payment Summary",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Sales Reports",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Fiscalization",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Users",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Payment Methods",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Receipt",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Company Details",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Items",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+},
+{
+  "doctype": "User Rights Permission",
+  "feature": "Zero Quantity",
+  "can_read": 1,
+  "can_create": 1,
+  "can_update": 1,
+  "can_delete": 1,
+  "can_submit": 1
+}
+
     ]
   }
 ]
