@@ -18,7 +18,7 @@
    "fieldname": "feature",
    "fieldtype": "Select",
    "label": "Feature",
-   "options": "Dashboard\nPOS\nQuotations\nSales\nProducts\nStock Management\nPayement Entries\nReports\nSettings\nPrinter\nPurchases\nStock Adjustment\nStock Transfer\nItem Group\nSales History\nCustomer List\nCashier Dashboard\nPayment Summary\nSales Reports\nFiscalization\nUsers\nPayment Methods\nReceipt\nCompany Details\nItems\nZero Quantity"
+   "options": "Dashboard\nPOS\nQuotations\nSales\nProducts\nStock Management\nPayment Entries\nReports\nSettings\nPrinter\nPurchases\nStock Adjustment\nStock Transfer\nItem Group\nSales History\nCustomer List\nCashier Dashboard\nPayment Summary\nSales Reports\nFiscalization\nUsers\nPayment Methods\nReceipt\nCompany Details\nItems\nZero Quantity"
   },
   {
    "default": "0",
@@ -55,7 +55,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-09 13:17:21.538641",
+ "modified": "2026-02-10 13:19:17.163906",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "User Rights Permission",
