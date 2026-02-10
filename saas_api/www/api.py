@@ -934,7 +934,9 @@ def login(usr, pwd, timezone):
         user_rights_profile = {
         "name": profile.name,
         "profile_name": profile.profile_name,
-        "is_admin": profile.is_admin,
+        "is_additional_tax_enabled": profile.is_additional_tax_enabled,
+        "food_tax": profile.food_tax,
+        "tourism_tax": profile.tourism_tax,
         "permissions": [
             {
                 "feature": p.feature,
@@ -1251,7 +1253,9 @@ def get_user_data(user=None):
             user_rights_profile = {
             "name": profile.name,
             "profile_name": profile.profile_name,
-            "is_admin": profile.is_admin,
+            "is_additional_tax_enabled": profile.is_additional_tax_enabled,
+            "food_tax": profile.food_tax,
+            "tourism_tax": profile.tourism_tax,
             "permissions": [
                 {
                     "feature": p.feature,
