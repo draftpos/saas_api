@@ -2829,3 +2829,184 @@ def add_user_rights_profile():
             frappe.db.commit()
         except Exception as e:
             frappe.log_error(f"Error adding user_rights_profile field: {str(e)}", "Patch Error")
+
+
+@frappe.whitelist(allow_guest=True)
+def get_products_saas():
+    try:
+        data = frappe.local.form_dict
+        
+        # Pagination
+        page = int(data.get("page", 1))
+        limit = int(data.get("limit", 1000))
+        if page < 1:
+            page = 1
+        start = (page - 1) * limit
+
+        # Optional item_group filter from request only (NOT permissions)
+        item_group = data.get("item_group")
+
+        # Build filters WITHOUT user permissions
+        filters = {"disabled": 0}
+        if item_group:
+            if isinstance(item_group, list):
+                filters["item_group"] = ["in", item_group]
+            else:
+                filters["item_group"] = item_group
+
+        # Count
+        total_count = frappe.db.count("Item", filters=filters)
+
+        # Get products
+        product_details = frappe.get_all(
+            "Item",
+            filters=filters,
+            fields=["name", 
+                    "item_name",
+                    "item_code",
+                    "item_group",
+                    "is_stock_item",
+                    "is_sales_item",
+                    "stock_uom"],
+            start=start,
+            limit=limit,
+            order_by="item_code"
+        )
+        uom_data = frappe.get_all(
+                 "UOM Conversion Detail",
+                 fields=["parent", "uom", "conversion_factor"])
+        uom_map = {}
+
+        for u in uom_data:
+            uom_map.setdefault(u["parent"], []).append({
+                "uom": u["uom"],
+                "conversion_factor": u["conversion_factor"]
+            })
+
+        # Warehouses
+        bin_data = frappe.get_all("Bin", fields=["item_code", "warehouse", "actual_qty"])
+
+        # Prices
+        price_lists = frappe.get_all(
+            "Item Price",
+            fields=["price_list", "price_list_rate", "item_code", "selling","uom", "buying"]
+        )
+
+        # Prep containers
+        products = {
+            p["item_code"]: {"warehouses": [], "prices": [], "taxes": []}
+            for p in product_details
+        }
+
+        # Add warehouse qty
+        for b in bin_data:
+            if b["item_code"] in products:
+                products[b["item_code"]]["warehouses"].append({
+                    "warehouse": b["warehouse"],
+                    "qtyOnHand": b["actual_qty"]
+                })
+
+        # Add missing items with 0 qty
+        for item_code, pdata in products.items():
+            if not pdata["warehouses"]:
+                pdata["warehouses"].append({
+                    "warehouse": get_default_warehouse_for_user(),
+                    "qtyOnHand": 0
+                })
+
+        # Add prices
+        for p in price_lists:
+            if p["item_code"] in products:
+                products[p["item_code"]]["prices"].append({
+                    "priceName": p["price_list"],
+                    "price": p["price_list_rate"],
+                    "uom": p["uom"] or "nos",
+                    "type": "selling" if p["selling"] else "buying"
+                })
+
+        # Add taxes
+        for p in product_details:
+            item_code = p["item_code"]
+            try:
+                doc = frappe.get_doc("Item", item_code)
+                for tax in getattr(doc, "taxes", []):
+                    products[item_code]["taxes"].append({
+                        "item_tax_template": tax.item_tax_template,
+                        "tax_category": tax.tax_category,
+                        "valid_from": tax.valid_from,
+                        "minimum_net_rate": tax.minimum_net_rate,
+                        "maximum_net_rate": tax.maximum_net_rate
+                    })
+            except:
+                pass
+
+        # Final response list
+        final_products = []
+        for p in product_details:
+            item_code = p["item_code"]
+            final_products.append({
+                "itemcode": item_code,
+                "itemname": p["item_name"],
+                "groupname": p["item_group"],
+                "maintainstock": p["is_stock_item"],
+                "warehouses": products[item_code]["warehouses"],
+                "default warehouse": get_default_warehouse_for_user(),
+                "prices": products[item_code]["prices"],
+                "taxes": products[item_code]["taxes"],
+                "is_sales_item": p["is_sales_item"],
+                "uom": {"stock_uom": p["stock_uom"],
+                "conversions": uom_map.get(item_code, [])},
+            })
+
+        # Pagination meta
+        total_pages = (total_count + limit - 1) // limit
+        pagination = {
+            "current_page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next_page": page < total_pages,
+            "has_prev_page": page > 1,
+            "next_page": page + 1 if page < total_pages else None,
+            "prev_page": page - 1 if page > 1 else None
+        }
+
+        create_response("200", {
+            "products": final_products,
+            "pagination": pagination
+        })
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(str(e), "Error fetching products")
+
+
+@frappe.whitelist()
+def get_default_warehouse_for_user():
+    """
+    Returns the default warehouse assigned to the logged-in user via User Permission.
+    If none found, returns None.
+    """
+    try:
+        user = frappe.session.user  # get the logged-in user
+        if user == "Guest":
+            return None
+
+        warehouse_permission = frappe.get_all(
+            "User Permission",
+            filters={
+                "user": user,
+                "allow": "Warehouse",
+                "is_default": 1
+            },
+            fields=["for_value"],
+            limit=1
+        )
+
+        if warehouse_permission:
+            return warehouse_permission[0]["for_value"]
+
+    except Exception as e:
+        frappe.log_error(e, "get_default_warehouse_for_user")
+
+    return None
