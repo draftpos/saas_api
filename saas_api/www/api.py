@@ -80,21 +80,35 @@ def generate_supplier_code():
 
 @frappe.whitelist(allow_guest=True)
 def create_item():
-    """POST: Create Item with auto-generated item_code (Guest-safe, no Stock Entry)"""
+    """POST: Create Item with multiple Item Tax Templates (Guest-safe, no Stock Entry)"""
     try:
         data = json.loads(frappe.request.data or "{}")
 
+        # -------------------------------------------------
+        # Basic item fields
+        # -------------------------------------------------
         item_name = data.get("item_name")
         simple_code = data.get("simple_code")
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
+        item_code = data.get("item_code")
+
         valuation_rate = float(data.get("valuation_rate", 0))
         is_stock_item = int(data.get("is_stock_item", 1))
-        tax_template=data.get("tax_template")
-        allow_sales=data.get("allow_sales")
-        is_sales_item=int(data.get("is_sales_item", 1))
+        allow_sales = int(data.get("allow_sales", 1))
+        is_sales_item = int(data.get("is_sales_item", 1))
 
+        # -------------------------------------------------
+        # Tax templates (LIST OF OBJECTS)
+        # -------------------------------------------------
+        tax_templates = data.get("tax_templates") or []
+
+        if not isinstance(tax_templates, list):
+            frappe.throw("tax_templates must be a list")
+
+        # -------------------------------------------------
         # Validate required fields
+        # -------------------------------------------------
         if not item_name or not item_group or not stock_uom:
             frappe.local.response["http_status_code"] = 400
             return {
@@ -102,28 +116,9 @@ def create_item():
                 "message": "Missing required fields: item_name, item_group, stock_uom."
             }
 
-        # Check if user already has an item with the same simple_code
-        # existing_item = frappe.db.exists(
-        #     "Item",
-        #     {
-        #         "simple_code": simple_code,
-        #         "owner": frappe.session.user
-        #     }
-        # )
-        # if existing_item:
-        #     frappe.local.response["http_status_code"] = 409  # Conflict
-        #     return {
-        #         "status": "error",
-        #         "message": f"An item with simple_code '{simple_code}' already exists for this Company."
-        #     }
-
-        # Auto-generate item code
-        # item_code = generate_item_code()
-        item_code = data.get("item_code")
-        min_tax_val = data.get("min_tax_val")
-        max_tax_val = data.get("max_tax_val")
-        tax_cat = data.get("tax_category")
+        # -------------------------------------------------
         # Ensure Item Group exists
+        # -------------------------------------------------
         if not frappe.db.exists("Item Group", item_group):
             group = frappe.get_doc({
                 "doctype": "Item Group",
@@ -133,7 +128,9 @@ def create_item():
             group.flags.ignore_permissions = True
             group.insert()
 
+        # -------------------------------------------------
         # Ensure UOM exists
+        # -------------------------------------------------
         if not frappe.db.exists("UOM", stock_uom):
             uom = frappe.get_doc({
                 "doctype": "UOM",
@@ -142,54 +139,62 @@ def create_item():
             uom.flags.ignore_permissions = True
             uom.insert()
 
-    # Create Item without setting opening_stock (avoids Stock Entry)
+        # -------------------------------------------------
+        # Create Item (NO opening stock → no Stock Entry)
+        # -------------------------------------------------
         item = frappe.get_doc({
-        "doctype": "Item",
-        "item_code": item_code,
-        "item_name": item_name,
-		"custom_simple_code": simple_code,
-        "item_group": item_group,
-        "stock_uom": stock_uom,
-        "is_stock_item": is_stock_item,
-        "valuation_rate": valuation_rate,
+            "doctype": "Item",
+            "item_code": item_code,
+            "item_name": item_name,
+            "custom_simple_code": simple_code,
+            "item_group": item_group,
+            "stock_uom": stock_uom,
+            "is_stock_item": is_stock_item,
+            "valuation_rate": valuation_rate,
+            "is_sales_item": is_sales_item,
         })
+
         item.is_sales_item = allow_sales
 
-        # Add tax row if tax_template is provided
-        if tax_template:
-       
-            template_doc = frappe.db.get_value("Item Tax Template", filters={}, order_by="creation asc" )
-            first_template_name = frappe.db.get_value("Item Tax Template", 
-                                             filters={}, 
-                                             fieldname="name", 
-                                             order_by="creation asc")
-    
-            if first_template_name:
-                # 2. Fetch the actual Document object so you can see child tables (taxes)
-                template_doc = frappe.get_doc("Item Tax Template", first_template_name)
-                # 3. Extract values safely
-                tax_rate_value = 0
+        # -------------------------------------------------
+        # Add MULTIPLE Item Tax Templates
+        # -------------------------------------------------
+        if tax_templates:
+            item.taxes = []
 
-                if template_doc.taxes:
-                    tax_rate_value = template_doc.taxes[0].tax_rate or 0
+            added_templates = set()
 
-                # 4. Append to the Item
-                if not hasattr(item, "taxes"):
-                    item.taxes = []
+            for tax in tax_templates:
+                template_name = tax.get("tax_template")
+                min_tax_val = tax.get("min_tax_val")
+                max_tax_val = tax.get("max_tax_val")
+                tax_category = tax.get("tax_category")
+
+                if not template_name:
+                    continue
+
+                if template_name in added_templates:
+                    continue
+
+                if not frappe.db.exists("Item Tax Template", template_name):
+                    frappe.log_error(
+                        f"Item Tax Template '{template_name}' not found",
+                        "create_item API"
+                    )
+                    continue
 
                 item.append("taxes", {
-                    "item_tax_template": template_doc.name,
-                    "tax_category": tax_cat,
-                    "valid_from": getattr(first_template_name, "valid_from", None),
-                    "minimum_net_rate": min_tax_val, # Ensure these are defined in your API
+                    "item_tax_template": template_name,
+                    "tax_category": tax_category,
+                    "minimum_net_rate": min_tax_val,
                     "maximum_net_rate": max_tax_val
                 })
-            else:
-                frappe.log_error("No Item Tax Templates found in system", "tax_template_logic")
 
-        else:
-            frappe.log_error(f"Item Tax Template '{tax_template}' not found", "create_item API")
+                added_templates.add(template_name)
 
+        # -------------------------------------------------
+        # Save Item
+        # -------------------------------------------------
         item.flags.ignore_permissions = True
         item.insert()
         frappe.db.commit()
@@ -199,15 +204,16 @@ def create_item():
             "status": "success",
             "message": f"Item '{item_name}' created successfully.",
             "item_code": item.item_code,
-            "item_name": item_name,
-            # "simple_code": simple_code
+            "item_name": item_name
         }
 
     except Exception as e:
         frappe.log_error(title="Item API Error", message=frappe.get_traceback())
         frappe.local.response["http_status_code"] = 500
-        return {"status": "error", "message": str(e)}
-
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 
 @frappe.whitelist(allow_guest=True)
