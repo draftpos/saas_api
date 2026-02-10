@@ -3,7 +3,7 @@
     "doctype": "User Rights Profile",
     "name": "Admin",
     "profile_name": "Admin",
-    "is_admin": 1,
+    "is_additional_tax_enabled": 1,
     "permissions": [
       {
         "doctype": "User Rights Permission",
@@ -101,7 +101,7 @@
     "doctype": "User Rights Profile",
     "name": "Cashier",
     "profile_name": "Cashier",
-    "is_admin": 0,
+    "is_additional_tax_enabled": 0,
     "permissions": [
       {
         "doctype": "User Rights Permission",

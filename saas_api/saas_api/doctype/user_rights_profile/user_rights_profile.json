@@ -7,7 +7,9 @@
  "engine": "InnoDB",
  "field_order": [
   "profile_name",
-  "is_admin",
+  "is_additional_tax_enabled",
+  "food_tax",
+  "tourism_tax",
   "permissions"
  ],
  "fields": [
@@ -20,22 +22,33 @@
    "unique": 1
   },
   {
-   "default": "0",
-   "fieldname": "is_admin",
-   "fieldtype": "Check",
-   "label": "Is Admin"
-  },
-  {
+   "columns": 12,
    "fieldname": "permissions",
    "fieldtype": "Table",
    "label": "Permissions",
    "options": "User Rights Permission"
+  },
+  {
+   "fieldname": "food_tax",
+   "fieldtype": "Data",
+   "label": "Food Tax"
+  },
+  {
+   "fieldname": "tourism_tax",
+   "fieldtype": "Data",
+   "label": "Tourism Tax"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_additional_tax_enabled",
+   "fieldtype": "Check",
+   "label": "Is Additional Tax enabled(Food,Toursim)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-13 16:07:11.669210",
+ "modified": "2026-02-10 09:45:58.055244",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "User Rights Profile",
