@@ -8,6 +8,7 @@
  "field_order": [
   "profile_name",
   "is_additional_tax_enabled",
+  "is_item_group_related",
   "food_tax",
   "tourism_tax",
   "permissions"
@@ -43,12 +44,18 @@
    "fieldname": "is_additional_tax_enabled",
    "fieldtype": "Check",
    "label": "Is Additional Tax enabled(Food,Toursim)"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_item_group_related",
+   "fieldtype": "Check",
+   "label": "Show Item Group Related Items"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-10 09:45:58.055244",
+ "modified": "2026-02-12 09:50:27.762142",
  "modified_by": "Administrator",
  "module": "Saas Api",
  "name": "User Rights Profile",
