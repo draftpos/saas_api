@@ -2727,79 +2727,75 @@ def create_item_group():
 
 import frappe
 import traceback
-from frappe.utils import today
+from frappe.utils import today, getdate, nowtime
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def cloud_invoice(**payload):
     try:
         if not payload:
             frappe.throw("Payload is required")
 
-        # Required fields
         required = ["customer", "company", "items", "cost_center", "reference_number"]
         for f in required:
-            if f not in payload:
+            if not payload.get(f):
                 frappe.throw(f"{f} is mandatory")
 
-        # Idempotency: prevent duplicates by reference_number
         existing = frappe.db.get_value(
             "Sales Invoice",
             {"reference_number": payload["reference_number"]},
             "name"
         )
         if existing:
-            return {"status": "exists", "invoice_name": existing}
+            return {"status": "exists", "data": {"name": existing}}
 
         posting_date = payload.get("posting_date") or today()
-        incoming_due_date = payload.get("due_date")
         today_date = getdate(today())
 
-        if not incoming_due_date:
+        incoming_due_date = payload.get("due_date")
+        due_date = getdate(incoming_due_date) if incoming_due_date else today_date
+        if due_date < today_date:
             due_date = today_date
-        else:
-            incoming_due_date = getdate(incoming_due_date)
-            due_date = incoming_due_date if incoming_due_date >= today_date else today_date
 
+        items = []
+        for d in payload["items"]:
+            if not d.get("qty"):
+                frappe.throw("Item qty is mandatory")
 
+            items.append({
+                "item_code": d.get("item_code"),
+                "item_name": d.get("item_name"),
+                "qty": d["qty"],
+                "rate": d.get("rate") or 0,
+                "warehouse": d.get("warehouse"),
+                "cost_center": d.get("cost_center"),
+                "income_account": d.get("income_account"),
+            })
 
         invoice = frappe.get_doc({
             "doctype": "Sales Invoice",
             "company": payload["company"],
             "customer": payload["customer"],
             "posting_date": posting_date,
-            "posting_time": posting_time,
+            "posting_time": nowtime(),
             "due_date": due_date,
-            "currency": payload.get("currency") or "USD",
-            "conversion_rate": payload.get("conversion_rate") or 1,
+            "currency": payload.get("currency", "USD"),
+            "conversion_rate": payload.get("conversion_rate", 1),
             "update_stock": payload.get("update_stock", 1),
             "set_warehouse": payload.get("set_warehouse"),
             "cost_center": payload["cost_center"],
             "taxes_and_charges": payload.get("taxes_and_charges"),
-            "payments": payload.get("payments", []),
             "reference_number": payload["reference_number"],
-            "items": [
-                {
-                    "item_code": d.get("item_code"),
-                    "item_name": d.get("item_name"),
-                    "qty": d.get("qty") or 0,
-                    "rate": d.get("rate") or 0,
-                    "warehouse": d.get("warehouse"),
-                    "cost_center": d.get("cost_center"),
-                    "income_account": d.get("income_account")
-                }
-                for d in payload["items"]
-            ]
+            "items": items
         })
 
         invoice.insert(ignore_permissions=True)
         invoice.submit()
 
-        # return {"status": "success", "invoice_name": invoice.name}
         return {"status": "success", "data": {"name": invoice.name}}
 
     except Exception:
-        frappe.log_error(title="Cloud Invoice Error", message=traceback.format_exc())
-        return {"status": "error", "message": traceback.format_exc()}
+        frappe.log_error(traceback.format_exc(), "Cloud Invoice Error")
+        return {"status": "error", "message": "Invoice creation failed"}
 
 import frappe
 
