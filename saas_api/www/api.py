@@ -2729,7 +2729,7 @@ import frappe
 import traceback
 from frappe.utils import today, getdate, nowtime
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest = True)
 def cloud_invoice(**payload):
     try:
         if not payload:
