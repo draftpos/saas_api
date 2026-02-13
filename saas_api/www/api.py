@@ -2728,20 +2728,9 @@ def create_item_group():
 import frappe
 import traceback
 from frappe.utils import today
+
 @frappe.whitelist(allow_guest=True)
 def cloud_invoice(**payload):
-    """
-    Cloud-safe endpoint for creating Sales Invoices.
-    Accepts plain JSON in POST body (no wrapping needed).
-    Example JSON keys:
-      - customer
-      - company
-      - items (list of dicts with item_code, qty, rate, warehouse, etc.)
-      - cost_center
-      - reference_number
-      - posting_date, posting_time, due_date, currency, conversion_rate
-    """
-
     try:
         if not payload:
             frappe.throw("Payload is required")
@@ -2761,10 +2750,17 @@ def cloud_invoice(**payload):
         if existing:
             return {"status": "exists", "invoice_name": existing}
 
-        # Default dates
         posting_date = payload.get("posting_date") or today()
-        posting_time = payload.get("posting_time")
-        due_date = payload.get("due_date") or posting_date
+        incoming_due_date = payload.get("due_date")
+        today_date = getdate(today())
+
+        if not incoming_due_date:
+            due_date = today_date
+        else:
+            incoming_due_date = getdate(incoming_due_date)
+            due_date = incoming_due_date if incoming_due_date >= today_date else today_date
+
+
 
         invoice = frappe.get_doc({
             "doctype": "Sales Invoice",
@@ -2804,6 +2800,7 @@ def cloud_invoice(**payload):
     except Exception:
         frappe.log_error(title="Cloud Invoice Error", message=traceback.format_exc())
         return {"status": "error", "message": traceback.format_exc()}
+
 import frappe
 
 def add_user_rights_profile():
