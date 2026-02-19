@@ -45,9 +45,8 @@ async def handler(websocket):
                 limit=req.get("limit", 20),
                 status=req.get("status")
             )
-
             await websocket.send(json.dumps(batch, default=str))
-
+            
 async def main():
     # Use the [websockets documentation](https://websockets.readthedocs.io) 
     # to configure production-grade settings
