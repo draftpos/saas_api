@@ -31,12 +31,6 @@ WorkingDirectory=$BENCH_PATH
 ExecStart=$PYTHON_BIN $WEBSOCKET_SCRIPT
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
-Environment="FRAPPE_PYTHON=$PYTHON_BIN"
-Environment="FRAPPE_SITE=$FRAPPE_SITE"
-Environment="FRAPPE_SITES_PATH=$BENCH_PATH/sites"
-
 [Install]
 WantedBy=multi-user.target
 EOL
