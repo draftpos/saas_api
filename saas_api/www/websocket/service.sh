@@ -4,7 +4,7 @@
 SERVICE_NAME="cloud_ws"
 BENCH_PATH="/home/frappe/frappe-bench"
 PYTHON_BIN="$BENCH_PATH/env/bin/python"
-WEBSOCKET_SCRIPT="$BENCH_PATH/apps/saas_api/saas_api/www/websocket_server.py"
+WEBSOCKET_SCRIPT="$BENCH_PATH/apps/saas_api/saas_api/www/websocket/websocket_server.py"
 FRAPPE_SITE="pay.havano.cloud"
 
 SYSTEMD_FILE="/etc/systemd/system/$SERVICE_NAME.service"
