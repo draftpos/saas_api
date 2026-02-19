@@ -3003,3 +3003,4 @@ def get_default_warehouse_for_user():
         frappe.log_error(e, "get_default_warehouse_for_user")
 
     return None
+
