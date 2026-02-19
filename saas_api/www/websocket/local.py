@@ -3,9 +3,9 @@ import websockets
 import json
 
 # Config
-URI = "ws://localhost:8765"  # Cloud WebSocket server
+URI = "ws://62.171.186.89:8765"  # Cloud WebSocket server
 # SITE_ID = "pharoah"          
-SITE_ID = "labmaster.local" 
+SITE_ID = "pay.havano.cloud" 
 DEFAULT_MODIFIED = "1970-01-01T00:00:00"  # initial sync timestamp
 
 async def pull_batches(websocket, modified_since, batch_size=3):

@@ -6,7 +6,8 @@ import sys
 import frappe
 
 # --- 1. ENVIRONMENT SETUP (The "Manual Bench" way) ---
-BENCH_PATH = "/home/munyaradzi/Documents/frappe-bench"
+# BENCH_PATH = "/home/munyaradzi/Documents/frappe-bench"
+BENCH_PATH = "/home/frappe/frappe-bench"
 SITES_PATH = os.path.join(BENCH_PATH, "sites")
 
 sys.path.append(os.path.join(BENCH_PATH, "apps", "frappe"))
