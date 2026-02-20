@@ -193,6 +193,43 @@ def create_item():
                 added_templates.add(template_name)
 
         # -------------------------------------------------
+        # Add UOM Conversion Factors
+        # -------------------------------------------------
+
+        # Always add Stock UOM with factor = 1
+        item.append("uoms", {
+            "uom": stock_uom,
+            "conversion_factor": 1
+        })
+
+        uom_conversions = data.get("uom_conversions") or []
+
+        if isinstance(uom_conversions, list):
+            for row in uom_conversions:
+                uom = row.get("uom")
+                factor = row.get("conversion_factor")
+
+                if not uom or not factor:
+                    continue
+
+                # avoid duplicating stock UOM
+                if uom == stock_uom:
+                    continue
+
+                # ensure UOM exists
+                if not frappe.db.exists("UOM", uom):
+                    uom_doc = frappe.get_doc({
+                        "doctype": "UOM",
+                        "uom_name": uom
+                    })
+                    uom_doc.flags.ignore_permissions = True
+                    uom_doc.insert()
+
+                item.append("uoms", {
+                    "uom": uom,
+                    "conversion_factor": float(factor)
+                })
+        # -------------------------------------------------
         # Save Item
         # -------------------------------------------------
         item.flags.ignore_permissions = True
@@ -2408,7 +2445,6 @@ def run_sales_by_cost_center(filters):
       
     )
     
-
     frappe.log_error(
         title="Sales By Cost Center Debug",
         message=frappe.as_json(result)
