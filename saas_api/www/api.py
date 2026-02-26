@@ -152,6 +152,7 @@ def create_item():
             "is_stock_item": is_stock_item,
             "valuation_rate": valuation_rate,
             "is_sales_item": is_sales_item,
+            "custom_food_and_tourism_tax": custom_food_and_tourism_tax
         })
 
         item.is_sales_item = allow_sales
