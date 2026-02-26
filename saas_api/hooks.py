@@ -278,12 +278,13 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Customer", "Item Price","Purchase Invoice"]],
+            ["dt", "in", ["Customer", "Item Price","Purchase Invoice","Item"]],
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",
                 "custom_sync_reference",
                 "custom_sync_reference"
+                "custom_food_and_tourism_tax"
             ]]
         ]
     },

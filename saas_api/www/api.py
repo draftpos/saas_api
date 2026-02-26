@@ -92,7 +92,7 @@ def create_item():
         item_group = data.get("item_group")
         stock_uom = data.get("stock_uom")
         item_code = data.get("item_code")
-
+        custom_food_and_tourism_tax = data.get("food_and_tourism_tax", 0)
         valuation_rate = float(data.get("valuation_rate", 0))
         is_stock_item = int(data.get("is_stock_item", 1))
         allow_sales = int(data.get("allow_sales", 1))
