@@ -283,7 +283,7 @@ fixtures = [
                 "custom_cost_center",
                 "custom_warehouse",
                 "custom_sync_reference",
-                "custom_sync_reference"
+                "custom_sync_reference",
                 "custom_food_and_tourism_tax"
             ]]
         ]
