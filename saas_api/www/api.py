@@ -2765,7 +2765,6 @@ def create_item_group():
 import frappe
 import traceback
 from frappe.utils import today, getdate, nowtime
-
 @frappe.whitelist(allow_guest=True)
 def cloud_invoice(**payload):
     try:
@@ -2837,12 +2836,41 @@ def cloud_invoice(**payload):
         invoice.insert(ignore_permissions=True)
         invoice.submit()
 
-        return {"status": "success", "data": {"name": invoice.name}}
+        # --- Create Payment Entry immediately after submitting invoice ---
+        payment_entry = frappe.get_doc({
+            "doctype": "Payment Entry",
+            "payment_type": "Receive",
+            "mode_of_payment": payload.get("mode_of_payment") or "Cash",  # adjust default if needed
+            "party_type": "Customer",
+            "party": customer_name,
+            "paid_to": payload.get("paid_to") or frappe.get_value("Company", payload["company"], "default_cash_account"),
+            "paid_from": payload.get("paid_from") or frappe.get_value("Company", payload["company"], "default_receivable_account"),
+            "company": payload["company"],
+            "posting_date": posting_date,
+            "paid_amount": invoice.outstanding_amount,
+            "received_amount": invoice.outstanding_amount,
+            "references": [
+                {
+                    "reference_doctype": "Sales Invoice",
+                    "reference_name": invoice.name,
+                    "total_amount": invoice.outstanding_amount,
+                    "allocated_amount": invoice.outstanding_amount
+                }
+            ]
+        }).insert(ignore_permissions=True)
+        payment_entry.submit()
+
+        return {
+            "status": "success",
+            "data": {
+                "invoice": invoice.name,
+                "payment_entry": payment_entry.name
+            }
+        }
 
     except Exception:
         frappe.log_error(traceback.format_exc(), "Cloud Invoice Error")
         return {"status": "error", "message": "Invoice creation failed"}
-
 import frappe
 
 def add_user_rights_profile():
