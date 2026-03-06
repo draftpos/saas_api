@@ -2766,7 +2766,7 @@ import frappe
 import traceback
 from frappe.utils import today, getdate, nowtime
 
-@frappe.whitelist(allow_guest = True)
+@frappe.whitelist(allow_guest=True)
 def cloud_invoice(**payload):
     try:
         if not payload:
@@ -2776,6 +2776,16 @@ def cloud_invoice(**payload):
         for f in required:
             if not payload.get(f):
                 frappe.throw(f"{f} is mandatory")
+
+        # --- Check if customer exists, create if missing ---
+        customer_name = payload["customer"]
+        if not frappe.db.exists("Customer", customer_name):
+            frappe.get_doc({
+                "doctype": "Customer",
+                "customer_name": customer_name,
+                "customer_type": "Individual",
+                "territory": "International"  # optional, adjust if needed
+            }).insert(ignore_permissions=True)
 
         existing = frappe.db.get_value(
             "Sales Invoice",
@@ -2811,7 +2821,7 @@ def cloud_invoice(**payload):
         invoice = frappe.get_doc({
             "doctype": "Sales Invoice",
             "company": payload["company"],
-            "customer": payload["customer"],
+            "customer": customer_name,
             "posting_date": posting_date,
             "posting_time": nowtime(),
             "due_date": due_date,
