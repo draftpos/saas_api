@@ -2784,7 +2784,6 @@ def cloud_invoice(**payload):
                 "doctype": "Customer",
                 "customer_name": customer_name,
                 "customer_type": "Individual",
-                "territory": "International"  # optional, adjust if needed
             }).insert(ignore_permissions=True)
 
         existing = frappe.db.get_value(
