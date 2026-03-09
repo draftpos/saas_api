@@ -22,6 +22,8 @@ from frappe.utils import flt, today, add_days,getdate
 import traceback
 import os
 from frappe.desk.query_report import run
+from frappe.utils import today, getdate, nowtime
+
 
 def generate_item_code():
     """Generate a unique item code: HA-XXXXX-### style with incrementing numbers"""
@@ -2968,118 +2970,115 @@ def get_default_warehouse_for_user():
 
     return None
 
-import frappe
-import traceback
-from frappe.utils import today, getdate, nowtime
+
+@frappe.whitelist(allow_guest=True)
+def validate_payload(payload):
+    required = ["customer", "company", "items", "cost_center", "reference_number"]
+    for f in required:
+        if not payload.get(f):
+            frappe.throw(f"{f} is mandatory")
+
+def ensure_customer_exists(customer_name):
+    if not frappe.db.exists("Customer", customer_name):
+        frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": customer_name,
+            "customer_type": "Individual",
+        }).insert(ignore_permissions=True)
+
+def create_sync_invoice(payload):
+    items = [{
+        "item_code": d.get("item_code"),
+        "item_name": d.get("item_name"),
+        "qty": d["qty"],
+        "rate": d.get("rate") or 0,
+        "warehouse": d.get("warehouse"),
+        "cost_center": d.get("cost_center"),
+        "income_account": d.get("income_account"),
+    } for d in payload["items"]]
+    
+    invoice = frappe.get_doc({
+        "doctype": "Sales Invoice",
+        "company": payload["company"],
+        "customer": payload["customer"],
+        "posting_date": payload.get("posting_date") or today(),
+        "posting_time": nowtime(),
+        "due_date": payload.get("due_date") or today(),
+        "currency": payload.get("currency", "USD"),
+        "conversion_rate": payload.get("conversion_rate", 1),
+        "update_stock": payload.get("update_stock", 1),
+        "set_warehouse": payload.get("set_warehouse"),
+        "cost_center": payload["cost_center"],
+        "taxes_and_charges": payload.get("taxes_and_charges"),
+        "reference_number": payload["reference_number"],
+        "items": items
+    })
+    invoice.insert(ignore_permissions=True)
+    invoice.submit()
+    return invoice
+
+def create_sync_payment_entry(invoice, payload):
+    previous_user = frappe.session.user
+    try:
+        frappe.set_user("Administrator")
+        payment_entry = frappe.get_doc({
+            "doctype": "Payment Entry",
+            "payment_type": "Receive",
+            "mode_of_payment": payload.get("mode_of_payment") or "Cash",
+            "party_type": "Customer",
+            "party": invoice.customer,
+            "paid_to": payload.get("paid_to") or frappe.get_value("Company", invoice.company, "default_cash_account"),
+            "paid_from": payload.get("paid_from") or frappe.get_value("Company", invoice.company, "default_receivable_account"),
+            "company": invoice.company,
+            "posting_date": invoice.posting_date,
+            "paid_amount": invoice.outstanding_amount,
+            "received_amount": invoice.outstanding_amount,
+            "references": [{
+                "reference_doctype": "Sales Invoice",
+                "reference_name": invoice.name,
+                "total_amount": invoice.outstanding_amount,
+                "allocated_amount": invoice.outstanding_amount
+            }]
+        })
+        payment_entry.insert(ignore_permissions=True)
+        payment_entry.submit()
+    finally:
+        frappe.set_user(previous_user)
+    return payment_entry
+
+
 @frappe.whitelist(allow_guest=True)
 def cloud_invoice(**payload):
     try:
+        # --- Step 1: Ensure payload exists ---
         if not payload:
             frappe.throw("Payload is required")
 
-        required = ["customer", "company", "items", "cost_center", "reference_number"]
-        for f in required:
-            if not payload.get(f):
-                frappe.throw(f"{f} is mandatory")
+        # --- Step 2: Validate payload fields ---
+        validate_payload(payload)
 
-        # --- Check if customer exists, create if missing ---
-        customer_name = payload["customer"]
-        if not frappe.db.exists("Customer", customer_name):
-            frappe.get_doc({
-                "doctype": "Customer",
-                "customer_name": customer_name,
-                "customer_type": "Individual",
-            }).insert(ignore_permissions=True)
+        # --- Step 3: Ensure customer exists ---
+        ensure_customer_exists(payload["customer"])
 
+        # --- Step 4: Check if invoice already exists (idempotency) ---
         existing = frappe.db.get_value(
             "Sales Invoice",
             {"reference_number": payload["reference_number"]},
             "name"
         )
         if existing:
-            return {"status": "exists", "data": {"name": existing}}
+            return {
+                "status": "exists",
+                "data": {"name": existing}
+            }
 
-        posting_date = payload.get("posting_date") or today()
-        today_date = getdate(today())
+        # --- Step 5: Create invoice ---
+        invoice = create_sync_invoice(payload)
 
-        incoming_due_date = payload.get("due_date")
-        due_date = getdate(incoming_due_date) if incoming_due_date else today_date
-        if due_date < today_date:
-            due_date = today_date
+        # --- Step 6: Create payment entry ---
+        payment_entry = create_sync_payment_entry(invoice, payload)
 
-        items = []
-        for d in payload["items"]:
-            if not d.get("qty"):
-                frappe.throw("Item qty is mandatory")
-
-            items.append({
-                "item_code": d.get("item_code"),
-                "item_name": d.get("item_name"),
-                "qty": d["qty"],
-                "rate": d.get("rate") or 0,
-                "warehouse": d.get("warehouse"),
-                "cost_center": d.get("cost_center"),
-                "income_account": d.get("income_account"),
-            })
-
-        invoice = frappe.get_doc({
-            "doctype": "Sales Invoice",
-            "company": payload["company"],
-            "customer": customer_name,
-            "posting_date": posting_date,
-            "posting_time": nowtime(),
-            "due_date": due_date,
-            "currency": payload.get("currency", "USD"),
-            "conversion_rate": payload.get("conversion_rate", 1),
-            "update_stock": payload.get("update_stock", 1),
-            "set_warehouse": payload.get("set_warehouse"),
-            "cost_center": payload["cost_center"],
-            "taxes_and_charges": payload.get("taxes_and_charges"),
-            "reference_number": payload["reference_number"],
-            "items": items
-        })
-
-        invoice.insert(ignore_permissions=True)
-        invoice.submit()
-
-        # --- Create Payment Entry immediately after submitting invoice ---
-        # 1. Save the current user to revert later
-        previous_user = frappe.session.user
-        
-        try:
-            # 2. Switch to Administrator to bypass hardcoded permission checks
-            frappe.set_user("Administrator")
-            
-            payment_entry = frappe.get_doc({
-                "doctype": "Payment Entry",
-                "payment_type": "Receive",
-                "mode_of_payment": payload.get("mode_of_payment") or "Cash",
-                "party_type": "Customer",
-                "party": customer_name,
-                "paid_to": payload.get("paid_to") or frappe.get_value("Company", payload["company"], "default_cash_account"),
-                "paid_from": payload.get("paid_from") or frappe.get_value("Company", payload["company"], "default_receivable_account"),
-                "company": payload["company"],
-                "posting_date": posting_date,
-                "paid_amount": invoice.outstanding_amount,
-                "received_amount": invoice.outstanding_amount,
-                "references": [
-                    {
-                        "reference_doctype": "Sales Invoice",
-                        "reference_name": invoice.name,
-                        "total_amount": invoice.outstanding_amount,
-                        "allocated_amount": invoice.outstanding_amount
-                    }
-                ]
-            })
-            
-            # Note: ignore_permissions=True is still good practice here
-            payment_entry.insert(ignore_permissions=True)
-            payment_entry.submit()
-            
-        finally:
-            # 3. Always switch back to the original user
-            frappe.set_user(previous_user)
-
+        # --- Step 7: Return success with invoice and payment reference ---
         return {
             "status": "success",
             "data": {
@@ -3089,7 +3088,11 @@ def cloud_invoice(**payload):
         }
 
     except Exception:
+        # --- Step 8: Log detailed error for debugging ---
         frappe.log_error(traceback.format_exc(), "Cloud Invoice Error")
-        return {"status": "error", "message": "Invoice creation failed"}
 
-
+        # --- Step 9: Return safe JSON error for automated API ---
+        return {
+            "status": "error",
+            "message": "Invoice creation failed"
+        }
