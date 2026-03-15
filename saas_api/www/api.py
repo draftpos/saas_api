@@ -95,6 +95,8 @@ def create_item():
         stock_uom = data.get("stock_uom")
         item_code = data.get("item_code")
         custom_food_and_tourism_tax = data.get("food_and_tourism_tax", 0)
+        custom_food_tax = data.get("food_tax", 1)
+        custom_tourism_tax = data.get("tourism_tax", 0)
         valuation_rate = float(data.get("valuation_rate", 0))
         is_stock_item = int(data.get("is_stock_item", 1))
         allow_sales = int(data.get("allow_sales", 1))
@@ -155,7 +157,9 @@ def create_item():
             "valuation_rate": valuation_rate,
             "is_sales_item": is_sales_item,
             "custom_food_and_tourism_tax": custom_food_and_tourism_tax,
-        })
+            "custom_food_tax": custom_food_tax,
+            "custom_tourism_tax": custom_tourism_tax
+  })
 
         item.is_sales_item = allow_sales
 
@@ -3095,4 +3099,4 @@ def cloud_invoice(**payload):
         return {
             "status": "error",
             "message": "Invoice creation failed"
-        }
+        } 
