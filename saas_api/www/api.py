@@ -3099,47 +3099,4 @@ def cloud_invoice(**payload):
         return {
             "status": "error",
             "message": "Invoice creation failed"
-        } 
-
-# api.py
-import frappe
-from frappe import _
-
-@frappe.whitelist(allow_guest=True)
-def receive_sql_data():
-    """
-    Endpoint to receive data from the Windows service
-    and log it in 'Windows Error Log' with minimal fields.
-    """
-    import json
-    from frappe.utils import now_datetime
-
-    try:
-        # Get JSON payload from POST (works with both form or JSON)
-        if frappe.local.request and frappe.local.request.get_data():
-            data = json.loads(frappe.local.request.get_data() or "{}")
-        else:
-            data = frappe.local.form_dict.data
-            if isinstance(data, str):
-                data = json.loads(data)
-
-        # Insert into Windows Error Log
-        frappe.get_doc({
-            "doctype": "Windows Error Log",
-            "method": data.get("method", "Windows Service Task"),
-            "error": json.dumps(data.get("error", data), indent=2),
-            "timestamp": now_datetime()  # Africa/Harare timezone handled by Frappe
-        }).insert(ignore_permissions=True)
-
-        frappe.db.commit()
-        return {"status": "success", "message": "Data logged"}
-
-    except Exception as e:
-        # Fallback: log in default Error Log
-        frappe.get_doc({
-            "doctype": "Error Log",
-            "method": "Windows Service Test Error",
-            "error": str(e)
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-        return {"status": "error", "message": str(e)}
+        }
