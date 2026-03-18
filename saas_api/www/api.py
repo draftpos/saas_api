@@ -291,7 +291,7 @@ def fetch_pos_sync_settings(user=None):
             cc_users = cost_center_users.get(row.cost_center, [])
             percentage = 0
             if cc_users:
-                percentage = round(100 / len(cc_users), 2)
+                percentage = cost_center_users.get(row.percentage, [])
 
             cumulative_list.append({
                 "cost_center": row.cost_center,
