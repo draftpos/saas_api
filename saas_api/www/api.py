@@ -259,7 +259,60 @@ def create_item():
             "message": str(e)
         }
 
+import frappe
 
+@frappe.whitelist()
+def fetch_pos_sync_settings(user=None):
+    """
+    Fetch POS Sync Settings with cumulative percentages
+    """
+    try:
+        user = user or frappe.session.user
+        settings = frappe.get_single("POS Sync Settings")
+
+        # --- Item Filters ---
+        item_filters_list = []
+        for row in settings.item_filters or []:
+            item_filters_list.append({
+                "item_group": row.item_group,
+                "cost_center": row.cost_center,
+                "user": row.user
+            })
+
+        # --- Cumulative Users with percentage ---
+        # Build mapping: cost_center -> users
+        cost_center_users = {}
+        for row in settings.cumulative_users or []:
+            cc = row.cost_center
+            cost_center_users.setdefault(cc, []).append(row.user)
+
+        cumulative_list = []
+        for row in settings.cumulative_users or []:
+            cc_users = cost_center_users.get(row.cost_center, [])
+            percentage = 0
+            if cc_users:
+                percentage = round(100 / len(cc_users), 2)
+
+            cumulative_list.append({
+                "cost_center": row.cost_center,
+                "user": row.user,
+                "company": row.company,
+                "percentage": percentage
+            })
+
+        return {
+            "success": True,
+            "item_filters": item_filters_list,
+            "cumulative_users": cumulative_list
+        }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "POS Sync Settings Fetch Error")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+        
 @frappe.whitelist(allow_guest=True)
 def create_supplier():
     """POST: Create Supplier with auto-generated supplier_code"""
