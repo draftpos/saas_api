@@ -297,7 +297,7 @@ def fetch_pos_sync_settings(user=None):
                 "cost_center": row.cost_center,
                 "user": row.user,
                 "company": row.company,
-                "percentage": percentage
+                "percentage": row.percentage or 0
             })
 
         return {
