@@ -58,7 +58,16 @@ def supplier_permission_query(user):
 #     if not user or user == "Administrator":
 #         return ""
 #     return f"`tabUser`.owner = '{user}'"
+def warehouse_permission_query(user):
+    """Return SQL condition string for Warehouse permissions for a given user."""
+    if "System Manager" in frappe.get_roles(user):
+        return ""
 
+    company = frappe.db.get_value("User", user, "default_company")
+    if company:
+        return f"`tabWarehouse`.company = '{company}'"
+
+    return "1=1"
 
 def item_group_permission_query(user):
     if not user or user == "Administrator":
