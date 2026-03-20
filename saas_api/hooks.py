@@ -271,8 +271,11 @@ doc_events = {
 permission_query_conditions = {
     "Supplier": "saas_api.www.on_before.supplier_permission_query",
     "Warehouse": "saas_api.www.on_before.warehouse_permission_query",
-    "User": "saas_api.www.on_before.users_permission_query",
+    # "User": "saas_api.www.on_before.users_permission_query",
     "Item Group": "saas_api.www.on_before.item_group_permission_query"
+}
+has_permission = {
+    "Customer": "saas_api.www.on_before.has_customer_permission"
 }
 fixtures = [
     {
