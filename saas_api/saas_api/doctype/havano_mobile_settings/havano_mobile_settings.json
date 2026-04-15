@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "creation": "2026-03-21 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "discount_section",
+  "allow_discount",
+  "max_discount_percent",
+  "shift_section",
+  "require_shift",
+  "uom_section",
+  "allow_uom_selection"
+ ],
+ "fields": [
+  {
+   "fieldname": "discount_section",
+   "fieldtype": "Section Break",
+   "label": "Discount Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_discount",
+   "fieldtype": "Check",
+   "label": "Allow Discount"
+  },
+  {
+   "default": "100",
+   "depends_on": "eval:doc.allow_discount",
+   "fieldname": "max_discount_percent",
+   "fieldtype": "Percent",
+   "label": "Maximum Discount Percent"
+  },
+  {
+   "fieldname": "shift_section",
+   "fieldtype": "Section Break",
+   "label": "Shift Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_shift",
+   "fieldtype": "Check",
+   "label": "Require Shift Open/Close"
+  },
+  {
+   "fieldname": "uom_section",
+   "fieldtype": "Section Break",
+   "label": "UOM Settings"
+  },
+  {
+   "default": "1",
+   "fieldname": "allow_uom_selection",
+   "fieldtype": "Check",
+   "label": "Allow UOM Selection in POS"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-21 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Saas Api",
+ "name": "Havano Mobile Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

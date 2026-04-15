@@ -3143,3 +3143,713 @@ def receive_sql_data():
         }).insert(ignore_permissions=True)
         frappe.db.commit()
         return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_single_customer(customer_name=None):
+    """Fetch a single customer with prices, balance, and loyalty data.
+    Used for real-time updates when a WebSocket event indicates a customer changed."""
+    try:
+        if not customer_name:
+            customer_name = frappe.local.form_dict.get("customer_name")
+
+        if not customer_name:
+            return {"status": "error", "message": "customer_name is required"}
+
+        if not frappe.db.exists("Customer", customer_name):
+            return {"status": "error", "message": f"Customer {customer_name} not found"}
+
+        customer = frappe.get_doc("Customer", customer_name)
+
+        # Item prices for this customer's price list
+        items = []
+        if customer.default_price_list:
+            items = frappe.get_all(
+                "Item Price",
+                filters={"price_list": customer.default_price_list},
+                fields=["item_code", "item_name", "price_list_rate"]
+            )
+
+        # Balance from GL Entry
+        balance = 0
+        balance_result = frappe.db.sql("""
+            SELECT SUM(debit - credit) as balance
+            FROM `tabGL Entry`
+            WHERE party_type = 'Customer'
+            AND party = %s
+            AND is_cancelled = 0
+        """, customer_name, as_dict=True)
+        if balance_result and balance_result[0].balance:
+            balance = balance_result[0].balance
+
+        # Outstanding amount
+        outstanding = 0
+        outstanding_result = frappe.db.sql("""
+            SELECT SUM(outstanding_amount) as outstanding
+            FROM `tabSales Invoice`
+            WHERE customer = %s
+            AND docstatus = 1
+            AND outstanding_amount > 0
+        """, customer_name, as_dict=True)
+        if outstanding_result and outstanding_result[0].outstanding:
+            outstanding = outstanding_result[0].outstanding
+
+        # Loyalty points
+        loyalty_points = 0
+        loyalty_result = frappe.db.sql("""
+            SELECT SUM(loyalty_points) as points
+            FROM `tabLoyalty Point Entry`
+            WHERE customer = %s
+            AND expiry_date >= CURDATE()
+        """, customer_name, as_dict=True)
+        if loyalty_result and loyalty_result[0].points:
+            loyalty_points = loyalty_result[0].points
+
+        customer_data = {
+            "name": customer.name,
+            "customer_name": customer.customer_name,
+            "customer_type": customer.customer_type,
+            "custom_cost_center": customer.get("custom_cost_center"),
+            "custom_warehouse": customer.get("custom_warehouse"),
+            "gender": customer.get("gender"),
+            "customer_pos_id": customer.get("customer_pos_id"),
+            "default_price_list": customer.default_price_list,
+            "items": items,
+            "balance": balance,
+            "outstanding_amount": outstanding,
+            "loyalty_points": loyalty_points,
+            "modified": str(customer.modified),
+        }
+
+        return {"status": "success", "customer": customer_data}
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error fetching single customer")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_modified_customers(since=None):
+    """Fetch only customers modified since a given timestamp.
+    Used for delta sync instead of reloading all customers."""
+    try:
+        if not since:
+            since = frappe.local.form_dict.get("since")
+
+        if not since:
+            return {"status": "error", "message": "since timestamp is required"}
+
+        # Get user's default cost center for filtering
+        user = frappe.session.user
+        user_cost_center = frappe.db.get_value(
+            "User Permission",
+            {"user": user, "allow": "Cost Center", "is_default": 1},
+            "for_value"
+        )
+
+        filters = {"modified": [">=", since]}
+        if user_cost_center:
+            filters["custom_cost_center"] = user_cost_center
+
+        modified_customers = frappe.get_all(
+            "Customer",
+            filters=filters,
+            fields=["name"],
+            order_by="modified desc"
+        )
+
+        customers = []
+        for c in modified_customers:
+            try:
+                customer = frappe.get_doc("Customer", c.name)
+
+                items = []
+                if customer.default_price_list:
+                    items = frappe.get_all(
+                        "Item Price",
+                        filters={"price_list": customer.default_price_list},
+                        fields=["item_code", "item_name", "price_list_rate"]
+                    )
+
+                balance = 0
+                balance_result = frappe.db.sql("""
+                    SELECT SUM(debit - credit) as balance
+                    FROM `tabGL Entry`
+                    WHERE party_type = 'Customer' AND party = %s AND is_cancelled = 0
+                """, c.name, as_dict=True)
+                if balance_result and balance_result[0].balance:
+                    balance = balance_result[0].balance
+
+                outstanding = 0
+                outstanding_result = frappe.db.sql("""
+                    SELECT SUM(outstanding_amount) as outstanding
+                    FROM `tabSales Invoice`
+                    WHERE customer = %s AND docstatus = 1 AND outstanding_amount > 0
+                """, c.name, as_dict=True)
+                if outstanding_result and outstanding_result[0].outstanding:
+                    outstanding = outstanding_result[0].outstanding
+
+                customers.append({
+                    "name": customer.name,
+                    "customer_name": customer.customer_name,
+                    "customer_type": customer.customer_type,
+                    "custom_cost_center": customer.get("custom_cost_center"),
+                    "custom_warehouse": customer.get("custom_warehouse"),
+                    "gender": customer.get("gender"),
+                    "customer_pos_id": customer.get("customer_pos_id"),
+                    "default_price_list": customer.default_price_list,
+                    "items": items,
+                    "balance": balance,
+                    "outstanding_amount": outstanding,
+                    "modified": str(customer.modified),
+                })
+            except Exception:
+                continue
+
+        # Deleted customers
+        deleted = frappe.get_all(
+            "Deleted Document",
+            filters={"deleted_doctype": "Customer", "modified": [">=", since]},
+            fields=["deleted_name"]
+        )
+        deleted_names = [d["deleted_name"] for d in deleted]
+
+        return {
+            "status": "success",
+            "customers": customers,
+            "deleted_customers": deleted_names,
+            "total_modified": len(customers),
+            "total_deleted": len(deleted_names),
+            "since": since,
+            "server_time": str(now_datetime()),
+        }
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error fetching modified customers")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_mobile_settings():
+    """Fetch Havano Mobile Settings for the POS app."""
+    try:
+        doc = frappe.get_single("Havano Mobile Settings")
+        return {
+            "status": "success",
+            "settings": {
+                "allow_discount": doc.allow_discount,
+                "max_discount_percent": doc.max_discount_percent or 100,
+                "require_shift": doc.require_shift,
+                "allow_uom_selection": doc.allow_uom_selection,
+            }
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error fetching mobile settings")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def update_mobile_settings():
+    """Update Havano Mobile Settings from the POS app."""
+    try:
+        data = frappe.local.form_dict
+        doc = frappe.get_single("Havano Mobile Settings")
+        if "allow_discount" in data:
+            doc.allow_discount = int(data.get("allow_discount", 0))
+        if "max_discount_percent" in data:
+            doc.max_discount_percent = float(data.get("max_discount_percent", 100))
+        if "require_shift" in data:
+            doc.require_shift = int(data.get("require_shift", 0))
+        if "allow_uom_selection" in data:
+            doc.allow_uom_selection = int(data.get("allow_uom_selection", 0))
+        doc.save()
+        frappe.db.commit()
+        return {
+            "status": "success",
+            "settings": {
+                "allow_discount": doc.allow_discount,
+                "max_discount_percent": doc.max_discount_percent or 100,
+                "require_shift": doc.require_shift,
+                "allow_uom_selection": doc.allow_uom_selection,
+            }
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error updating mobile settings")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def open_shift():
+    """Open a new POS shift for the current user.
+
+    Accepts either:
+    - Legacy: opening_amount (single float)
+    - New: payment_balances (array of {payment_method, currency, opening_amount})
+    """
+    try:
+        data = frappe.local.form_dict
+        user = frappe.session.user
+        company = data.get("company") or frappe.defaults.get_user_default("company")
+        warehouse = data.get("warehouse") or frappe.defaults.get_user_default("warehouse")
+
+        # Check if there's already an open shift for this user
+        existing = frappe.get_all(
+            "POS Shift",
+            filters={"user": user, "status": "Open"},
+            limit=1,
+        )
+        if existing:
+            shift = frappe.get_doc("POS Shift", existing[0].name)
+            payment_balances = []
+            for pb in shift.payment_balances:
+                payment_balances.append({
+                    "payment_method": pb.payment_method,
+                    "currency": pb.currency,
+                    "opening_amount": pb.opening_amount,
+                    "closing_amount": pb.closing_amount,
+                    "expected_amount": pb.expected_amount,
+                    "difference": pb.difference,
+                })
+            return {
+                "status": "success",
+                "message": "Shift already open",
+                "shift": {
+                    "name": shift.name,
+                    "user": shift.user,
+                    "opening_amount": shift.opening_amount,
+                    "opening_time": str(shift.opening_time),
+                    "status": shift.status,
+                    "payment_balances": payment_balances,
+                }
+            }
+
+        # Handle payment_balances (new multi-payment-method format)
+        payment_balances_data = data.get("payment_balances")
+        if isinstance(payment_balances_data, str):
+            import json
+            payment_balances_data = json.loads(payment_balances_data)
+
+        # Calculate total opening amount from payment balances or use legacy field
+        total_opening = float(data.get("opening_amount", 0))
+        payment_balances_rows = []
+
+        if payment_balances_data:
+            total_opening = 0
+            for pb in payment_balances_data:
+                opening_amt = float(pb.get("opening_amount", 0))
+                total_opening += opening_amt
+                payment_balances_rows.append({
+                    "payment_method": pb.get("payment_method"),
+                    "currency": pb.get("currency"),
+                    "opening_amount": opening_amt,
+                    "closing_amount": 0,
+                    "expected_amount": 0,
+                    "difference": 0,
+                })
+
+        shift = frappe.get_doc({
+            "doctype": "POS Shift",
+            "user": user,
+            "company": company,
+            "warehouse": warehouse,
+            "opening_amount": total_opening,
+            "opening_time": frappe.utils.now_datetime(),
+            "status": "Open",
+            "payment_balances": payment_balances_rows,
+        })
+        shift.insert()
+        frappe.db.commit()
+
+        # Build response payment balances
+        response_balances = []
+        for pb in shift.payment_balances:
+            response_balances.append({
+                "payment_method": pb.payment_method,
+                "currency": pb.currency,
+                "opening_amount": pb.opening_amount,
+                "closing_amount": pb.closing_amount,
+                "expected_amount": pb.expected_amount,
+                "difference": pb.difference,
+            })
+
+        return {
+            "status": "success",
+            "message": "Shift opened",
+            "shift": {
+                "name": shift.name,
+                "user": shift.user,
+                "opening_amount": shift.opening_amount,
+                "opening_time": str(shift.opening_time),
+                "status": shift.status,
+                "payment_balances": response_balances,
+            }
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error opening shift")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def close_shift():
+    """Close the current open POS shift for the user.
+
+    Accepts either:
+    - Legacy: closing_amount (single float)
+    - New: payment_balances (array of {payment_method, closing_amount})
+    """
+    try:
+        data = frappe.local.form_dict
+        user = frappe.session.user
+        notes = data.get("notes", "")
+
+        # Find the open shift
+        open_shifts = frappe.get_all(
+            "POS Shift",
+            filters={"user": user, "status": "Open"},
+            limit=1,
+        )
+        if not open_shifts:
+            return {"status": "error", "message": "No open shift found"}
+
+        shift = frappe.get_doc("POS Shift", open_shifts[0].name)
+        shift.closing_time = frappe.utils.now_datetime()
+        shift.notes = notes
+        shift.status = "Closed"
+
+        # Handle payment_balances (new multi-payment-method format)
+        payment_balances_data = data.get("payment_balances")
+        if isinstance(payment_balances_data, str):
+            import json
+            payment_balances_data = json.loads(payment_balances_data)
+
+        # Get sales totals by payment method during this shift
+        sales_by_mode = frappe.db.sql("""
+            SELECT
+                sip.mode_of_payment as payment_method,
+                COALESCE(SUM(sip.amount), 0) as total
+            FROM `tabSales Invoice Payment` sip
+            INNER JOIN `tabSales Invoice` si ON si.name = sip.parent
+            WHERE si.owner = %s
+            AND si.posting_date >= %s
+            AND si.docstatus = 1
+            GROUP BY sip.mode_of_payment
+        """, (user, shift.opening_time), as_dict=True)
+
+        sales_by_mode_dict = {s["payment_method"]: s["total"] for s in sales_by_mode}
+
+        total_closing = float(data.get("closing_amount", 0))
+        total_expected = 0
+
+        if payment_balances_data and shift.payment_balances:
+            # Update each payment balance row with closing amount
+            total_closing = 0
+            for pb in shift.payment_balances:
+                # Find matching closing data
+                matching_close = next(
+                    (c for c in payment_balances_data if c.get("payment_method") == pb.payment_method),
+                    None
+                )
+                if matching_close:
+                    pb.closing_amount = float(matching_close.get("closing_amount", 0))
+                else:
+                    pb.closing_amount = 0
+
+                # Calculate expected = opening + sales for this payment method
+                sales_for_method = sales_by_mode_dict.get(pb.payment_method, 0)
+                pb.expected_amount = pb.opening_amount + sales_for_method
+                pb.difference = pb.closing_amount - pb.expected_amount
+
+                total_closing += pb.closing_amount
+                total_expected += pb.expected_amount
+        else:
+            # Legacy single amount mode
+            sales_total = frappe.db.sql("""
+                SELECT COALESCE(SUM(grand_total), 0) as total
+                FROM `tabSales Invoice`
+                WHERE owner = %s
+                AND posting_date >= %s
+                AND docstatus = 1
+            """, (user, shift.opening_time), as_dict=True)
+            total_expected = shift.opening_amount + (sales_total[0].total if sales_total else 0)
+
+        shift.closing_amount = total_closing
+        shift.expected_amount = total_expected
+        shift.difference = total_closing - total_expected
+        shift.save()
+        frappe.db.commit()
+
+        # Build response payment balances
+        response_balances = []
+        for pb in shift.payment_balances:
+            response_balances.append({
+                "payment_method": pb.payment_method,
+                "currency": pb.currency,
+                "opening_amount": pb.opening_amount,
+                "closing_amount": pb.closing_amount,
+                "expected_amount": pb.expected_amount,
+                "difference": pb.difference,
+            })
+
+        return {
+            "status": "success",
+            "message": "Shift closed",
+            "shift": {
+                "name": shift.name,
+                "user": shift.user,
+                "opening_amount": shift.opening_amount,
+                "closing_amount": shift.closing_amount,
+                "expected_amount": shift.expected_amount,
+                "difference": shift.difference,
+                "opening_time": str(shift.opening_time),
+                "closing_time": str(shift.closing_time),
+                "status": shift.status,
+                "notes": shift.notes,
+                "payment_balances": response_balances,
+            }
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error closing shift")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_current_shift():
+    """Get the current open shift for the logged-in user."""
+    try:
+        user = frappe.session.user
+        open_shifts = frappe.get_all(
+            "POS Shift",
+            filters={"user": user, "status": "Open"},
+            fields=["name", "user", "opening_amount", "opening_time", "status", "company", "warehouse"],
+            limit=1,
+        )
+        if open_shifts:
+            shift_data = open_shifts[0]
+            # Get payment balances for the shift
+            shift = frappe.get_doc("POS Shift", shift_data.name)
+            payment_balances = []
+            for pb in shift.payment_balances:
+                payment_balances.append({
+                    "payment_method": pb.payment_method,
+                    "currency": pb.currency,
+                    "opening_amount": pb.opening_amount,
+                    "closing_amount": pb.closing_amount,
+                    "expected_amount": pb.expected_amount,
+                    "difference": pb.difference,
+                })
+            shift_data["payment_balances"] = payment_balances
+            return {"status": "success", "shift": shift_data}
+        return {"status": "success", "shift": None}
+    except Exception as e:
+        frappe.log_error(str(e), "Error getting current shift")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_shift_reports():
+    """Get shift reports for admin users. Filters by date range and user.
+
+    Only users with System Manager role can access this endpoint.
+    """
+    try:
+        # Check if user has admin access
+        if "System Manager" not in frappe.get_roles():
+            return {"status": "error", "message": "Access denied. Admin only."}
+
+        data = frappe.local.form_dict
+        from_date = data.get("from_date")
+        to_date = data.get("to_date")
+        user_filter = data.get("user")
+        status_filter = data.get("status")
+        page = int(data.get("page", 1))
+        page_size = int(data.get("page_size", 20))
+
+        filters = {}
+
+        if from_date:
+            filters["opening_time"] = [">=", from_date]
+        if to_date:
+            if "opening_time" in filters:
+                filters["opening_time"] = ["between", [from_date, to_date + " 23:59:59"]]
+            else:
+                filters["opening_time"] = ["<=", to_date + " 23:59:59"]
+        if user_filter:
+            filters["user"] = user_filter
+        if status_filter:
+            filters["status"] = status_filter
+
+        # Get total count
+        total_count = frappe.db.count("POS Shift", filters=filters)
+
+        # Get shifts with pagination
+        shifts = frappe.get_all(
+            "POS Shift",
+            filters=filters,
+            fields=[
+                "name", "user", "status", "company", "warehouse",
+                "opening_time", "closing_time",
+                "opening_amount", "closing_amount",
+                "expected_amount", "difference", "notes"
+            ],
+            order_by="opening_time desc",
+            start=(page - 1) * page_size,
+            limit=page_size,
+        )
+
+        # Add payment balances to each shift
+        for shift in shifts:
+            payment_balances = frappe.get_all(
+                "POS Shift Payment",
+                filters={"parent": shift["name"]},
+                fields=[
+                    "payment_method", "currency",
+                    "opening_amount", "closing_amount",
+                    "expected_amount", "difference"
+                ],
+            )
+            shift["payment_balances"] = payment_balances
+            # Format datetime
+            if shift.get("opening_time"):
+                shift["opening_time"] = str(shift["opening_time"])
+            if shift.get("closing_time"):
+                shift["closing_time"] = str(shift["closing_time"])
+
+        # Get list of users who have shifts (for filter dropdown)
+        shift_users = frappe.db.sql("""
+            SELECT DISTINCT user FROM `tabPOS Shift` ORDER BY user
+        """, as_dict=True)
+
+        return {
+            "status": "success",
+            "shifts": shifts,
+            "total_count": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total_count + page_size - 1) // page_size,
+            "users": [u["user"] for u in shift_users],
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error getting shift reports")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_shift_detail():
+    """Get detailed information about a specific shift including payment balances."""
+    try:
+        data = frappe.local.form_dict
+        shift_name = data.get("shift_name")
+
+        if not shift_name:
+            return {"status": "error", "message": "shift_name is required"}
+
+        shift = frappe.get_doc("POS Shift", shift_name)
+
+        # Check access - user can see their own shifts, admin can see all
+        if shift.user != frappe.session.user and "System Manager" not in frappe.get_roles():
+            return {"status": "error", "message": "Access denied"}
+
+        payment_balances = []
+        for pb in shift.payment_balances:
+            payment_balances.append({
+                "payment_method": pb.payment_method,
+                "currency": pb.currency,
+                "opening_amount": pb.opening_amount,
+                "closing_amount": pb.closing_amount,
+                "expected_amount": pb.expected_amount,
+                "difference": pb.difference,
+            })
+
+        return {
+            "status": "success",
+            "shift": {
+                "name": shift.name,
+                "user": shift.user,
+                "status": shift.status,
+                "company": shift.company,
+                "warehouse": shift.warehouse,
+                "opening_time": str(shift.opening_time) if shift.opening_time else None,
+                "closing_time": str(shift.closing_time) if shift.closing_time else None,
+                "opening_amount": shift.opening_amount,
+                "closing_amount": shift.closing_amount,
+                "expected_amount": shift.expected_amount,
+                "difference": shift.difference,
+                "notes": shift.notes,
+                "payment_balances": payment_balances,
+            }
+        }
+    except Exception as e:
+        frappe.log_error(str(e), "Error getting shift detail")
+        return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_item_profitability():
+    """Get item profitability report for a specific item or all items."""
+    try:
+        data = frappe.local.form_dict
+        item_code = data.get("item_code")
+        from_date = data.get("from_date")
+        to_date = data.get("to_date")
+        company = data.get("company") or frappe.defaults.get_user_default("company")
+
+        filters = {"docstatus": 1, "company": company}
+        if from_date:
+            filters["posting_date"] = [">=", from_date]
+        if to_date:
+            if "posting_date" in filters:
+                filters["posting_date"] = ["between", [from_date, to_date]]
+            else:
+                filters["posting_date"] = ["<=", to_date]
+
+        invoice_names = frappe.get_all("Sales Invoice", filters=filters, pluck="name")
+        if not invoice_names:
+            return {"status": "success", "data": []}
+
+        item_filter = ""
+        if item_code:
+            item_filter = f"AND sii.item_code = '{frappe.db.escape(item_code)}'"
+
+        query = f"""
+            SELECT
+                sii.item_code,
+                sii.item_name,
+                SUM(sii.qty) as total_qty,
+                SUM(sii.amount) as total_revenue,
+                SUM(sii.qty * COALESCE(
+                    (SELECT valuation_rate FROM `tabItem` WHERE name = sii.item_code),
+                    0
+                )) as total_cost,
+                SUM(sii.amount) - SUM(sii.qty * COALESCE(
+                    (SELECT valuation_rate FROM `tabItem` WHERE name = sii.item_code),
+                    0
+                )) as profit,
+                COUNT(DISTINCT sii.parent) as invoice_count
+            FROM `tabSales Invoice Item` sii
+            INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+            WHERE si.docstatus = 1
+            AND si.company = %s
+            {"AND si.posting_date >= %s" if from_date else ""}
+            {"AND si.posting_date <= %s" if to_date else ""}
+            {item_filter}
+            GROUP BY sii.item_code, sii.item_name
+            ORDER BY profit DESC
+        """
+
+        params = [company]
+        if from_date:
+            params.append(from_date)
+        if to_date:
+            params.append(to_date)
+
+        result = frappe.db.sql(query, tuple(params), as_dict=True)
+
+        for row in result:
+            row["profit_margin"] = (
+                (row["profit"] / row["total_revenue"] * 100) if row["total_revenue"] else 0
+            )
+
+        return {"status": "success", "data": result}
+    except Exception as e:
+        frappe.log_error(str(e), "Error getting item profitability")
+        return {"status": "error", "message": str(e)}

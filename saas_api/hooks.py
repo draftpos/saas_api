@@ -254,18 +254,43 @@ after_install = [
 
 boot = "utils.create_default_user_rights"
 doc_events = {
-     "User": {
+    "User": {
         "after_insert": "saas_api.www.on_before.after_insert"
     },
     "Item": {
-        "before_insert": "saas_api.www.on_before.item_before_insert"
+        "before_insert": "saas_api.www.on_before.item_before_insert",
+        "after_insert": "saas_api.www.realtime.on_item_change",
+        "on_update": "saas_api.www.realtime.on_item_change",
+        "on_trash": "saas_api.www.realtime.on_item_delete",
     },
-    # "Supplier": {
-    #     "before_insert": "saas_api.www.on_before.supplier_before_insert"
-    # },
-    # "Item Group": {
-    #     "before_insert": "saas_api.www.on_before.item_group_before_insert"
-    # }
+    "Item Price": {
+        "after_insert": "saas_api.www.realtime.on_price_change",
+        "on_update": "saas_api.www.realtime.on_price_change",
+        "on_trash": "saas_api.www.realtime.on_price_change",
+    },
+    "Stock Ledger Entry": {
+        "after_insert": "saas_api.www.realtime.on_stock_change",
+    },
+    "Sales Invoice": {
+        "on_update": "saas_api.www.realtime.on_invoice_status_change",
+        "on_submit": "saas_api.www.realtime.on_invoice_status_change",
+        "on_cancel": "saas_api.www.realtime.on_invoice_status_change",
+    },
+    "Quotation": {
+        "after_insert": "saas_api.www.realtime.on_quotation_change",
+        "on_update": "saas_api.www.realtime.on_quotation_change",
+        "on_submit": "saas_api.www.realtime.on_quotation_change",
+        "on_cancel": "saas_api.www.realtime.on_quotation_change",
+    },
+    "Customer": {
+        "after_insert": "saas_api.www.realtime.on_customer_change",
+        "on_update": "saas_api.www.realtime.on_customer_change",
+    },
+    "User Permission": {
+        "after_insert": "saas_api.www.realtime.on_permission_change",
+        "on_update": "saas_api.www.realtime.on_permission_change",
+        "on_trash": "saas_api.www.realtime.on_permission_change",
+    },
 }
 
 permission_query_conditions = {
