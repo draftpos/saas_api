@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "autoname": "POS-SHIFT-.YYYY.-.#####",
+ "creation": "2026-03-21 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "company",
+  "warehouse",
+  "status",
+  "column_break_1",
+  "opening_time",
+  "closing_time",
+  "section_break_amounts",
+  "opening_amount",
+  "closing_amount",
+  "column_break_2",
+  "expected_amount",
+  "difference",
+  "section_break_payment_balances",
+  "payment_balances",
+  "section_break_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Open\nClosed"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "opening_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Opening Time"
+  },
+  {
+   "fieldname": "closing_time",
+   "fieldtype": "Datetime",
+   "label": "Closing Time"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Totals (Legacy)"
+  },
+  {
+   "default": "0",
+   "fieldname": "opening_amount",
+   "fieldtype": "Currency",
+   "label": "Opening Amount",
+   "description": "Total opening amount across all payment methods"
+  },
+  {
+   "default": "0",
+   "fieldname": "closing_amount",
+   "fieldtype": "Currency",
+   "label": "Closing Amount",
+   "description": "Total closing amount across all payment methods"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "expected_amount",
+   "fieldtype": "Currency",
+   "label": "Expected Amount",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "difference",
+   "fieldtype": "Currency",
+   "label": "Difference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_payment_balances",
+   "fieldtype": "Section Break",
+   "label": "Payment Method Balances"
+  },
+  {
+   "fieldname": "payment_balances",
+   "fieldtype": "Table",
+   "label": "Payment Balances",
+   "options": "POS Shift Payment"
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-04-14 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Saas Api",
+ "name": "POS Shift",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "All",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
