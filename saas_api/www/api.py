@@ -3656,11 +3656,7 @@ def cloud_invoice(**payload):
         return {
             "status": "error",
             "message": "Invoice creation failed"
-<<<<<<< HEAD
         }
-=======
-        } 
->>>>>>> fd3f673 (fix:rebase)
 
 # api.py
 import frappe
@@ -3704,8 +3700,6 @@ def receive_sql_data():
         }).insert(ignore_permissions=True)
         frappe.db.commit()
         return {"status": "error", "message": str(e)}
-
-<<<<<<< HEAD
 
 @frappe.whitelist()
 def get_single_customer(customer_name=None):
@@ -4415,5 +4409,3 @@ def get_item_profitability():
     except Exception as e:
         frappe.log_error(str(e), "Error getting item profitability")
         return {"status": "error", "message": str(e)}
-=======
->>>>>>> fd3f673 (fix:rebase)
