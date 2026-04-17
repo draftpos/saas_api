@@ -159,8 +159,7 @@ def create_item():
             "custom_food_and_tourism_tax": custom_food_and_tourism_tax,
             "custom_food_tax": custom_food_tax,
             "custom_tourism_tax": custom_tourism_tax
-  })
-
+        })
         item.is_sales_item = allow_sales
 
         # -------------------------------------------------
@@ -3657,7 +3656,11 @@ def cloud_invoice(**payload):
         return {
             "status": "error",
             "message": "Invoice creation failed"
+<<<<<<< HEAD
         }
+=======
+        } 
+>>>>>>> fd3f673 (fix:rebase)
 
 # api.py
 import frappe
@@ -3702,6 +3705,7 @@ def receive_sql_data():
         frappe.db.commit()
         return {"status": "error", "message": str(e)}
 
+<<<<<<< HEAD
 
 @frappe.whitelist()
 def get_single_customer(customer_name=None):
@@ -4411,3 +4415,5 @@ def get_item_profitability():
     except Exception as e:
         frappe.log_error(str(e), "Error getting item profitability")
         return {"status": "error", "message": str(e)}
+=======
+>>>>>>> fd3f673 (fix:rebase)
