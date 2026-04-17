@@ -290,8 +290,6 @@ def fetch_pos_sync_settings(user=None):
         for row in settings.cumulative_users or []:
             cc_users = cost_center_users.get(row.cost_center, [])
             percentage = 0
-            if cc_users:
-                percentage = cost_center_users.get(row.percentage, [])
 
             cumulative_list.append({
                 "cost_center": row.cost_center,
@@ -1960,11 +1958,10 @@ def verify_email(email, verification_code):
             status=400,
             message=str(e)
         )
-
 @frappe.whitelist(allow_guest=True)
-def create_user(email, password, first_name, last_name=None, full_name=None, pin=None, phone_number=None):
+def create_user(email, password, first_name, last_name=None, full_name=None, pin=None, phone_number=None, role_profile=None):
     """
-    API endpoint for user signup with admin-level permissions
+    API endpoint for user signup with proper role assignment and defaults
     
     Args:
         email: User's email address
@@ -1974,22 +1971,24 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
         full_name: User's full name (optional)
         pin: User's pin
         phone_number: User's phone number
+        role_profile: Optional role profile name to assign specific roles
     
     Returns:
         dict: Success message with user details
     """
     try:
-        # Validate inputs
-        if not email:
-            frappe.throw(_("Email is required"))
-        if not password:
-            frappe.throw(_("Password is required"))
-        if not pin:
-            frappe.throw(_("Pin is required"))
-        if not first_name:
-            frappe.throw(_("First name is required"))
-        if not phone_number:
-            frappe.throw(_("Phone number is required"))
+        # ==================== VALIDATION ====================
+        required_fields = {
+            "email": email,
+            "password": password,
+            "pin": pin,
+            "first_name": first_name,
+            "phone_number": phone_number
+        }
+        
+        for field_name, field_value in required_fields.items():
+            if not field_value:
+                frappe.throw(_("{0} is required").format(field_name.replace("_", " ").title()))
 
         # Validate email format
         try:
@@ -1999,51 +1998,150 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
 
         # Check if user already exists
         if frappe.db.exists("User", email):
-            frappe.throw(_("User with this email already exists"))
+            frappe.throw(_("User with email {0} already exists").format(email))
 
         # Validate password strength
         validate_password(password)
+        
+        # Validate PIN (should be numeric and appropriate length)
+        if not pin.isdigit():
+            frappe.throw(_("PIN must contain only numbers"))
+        if len(pin) < 4 or len(pin) > 6:
+            frappe.throw(_("PIN must be between 4 and 6 digits"))
 
         # Construct full name
         if not full_name:
             full_name = f"{first_name} {last_name}" if last_name else first_name
 
-        # Create user
+        # ==================== USER CREATION ====================
         user = frappe.get_doc({
             "doctype": "User",
             "email": email,
-            "first_name": first_name,
-            "last_name": last_name or "",
-            "full_name": full_name,
+            "first_name": first_name.strip(),
+            "last_name": (last_name or "").strip(),
+            "full_name": full_name.strip(),
             "enabled": 1,
             "new_password": password,
             "send_welcome_email": 1,
             "user_type": "System User",
             "pin": pin,
-            "phone_number": phone_number
+            "phone_number": phone_number,
+            "user_rights_profile": role_profile
         })
 
         user.flags.ignore_permissions = True
         user.insert()
-
-        # Add all roles available in the system
-        all_roles = [r.name for r in frappe.get_all("Role")]
-        user.add_roles(*all_roles)
-
         frappe.db.commit()
-        set_defaults_for_user(email)
-        ensure_default_customer_for_user(email)
 
+        # ==================== ROLE ASSIGNMENT ====================
+        assigned_roles = []
+        
+        # Method 1: Use role profile if provided
+        if role_profile and frappe.db.exists("User Rights Profile", role_profile):
+            profile = frappe.get_doc("User Rights Profile", role_profile)
+            for perm in profile.permissions:
+                if perm.feature and frappe.db.exists("Role", perm.feature):
+                    user.add_roles(perm.feature)
+                    assigned_roles.append(perm.feature)
+        
+        # Method 2: Assign default roles if no profile or profile had no roles
+        if not assigned_roles:
+            # Essential roles for basic functionality
+            default_roles = [
+                "Customer",           # For customer portal access
+                "Website User",       # For website access
+                "All"                 # Basic read access
+            ]
+            
+            # Check which roles exist in the system
+            existing_roles = frappe.get_all("Role", filters={"name": ["in", default_roles]}, pluck="name")
+            
+            if existing_roles:
+                user.add_roles(*existing_roles)
+                assigned_roles.extend(existing_roles)
+            
+            # Add specific module-based roles based on business needs
+            module_roles = []
+            if frappe.db.exists("Role", "Sales User"):
+                module_roles.append("Sales User")
+            if frappe.db.exists("Role", "Purchase User"):
+                module_roles.append("Purchase User")
+            if frappe.db.exists("Role", "Accounts User"):
+                module_roles.append("Accounts User")
+            
+            if module_roles:
+                user.add_roles(*module_roles)
+                assigned_roles.extend(module_roles)
+        
+        # Method 3: Fallback - assign a basic role if nothing else worked
+        if not assigned_roles:
+            # Create a basic role if none exists
+            if not frappe.db.exists("Role", "Basic User"):
+                basic_role = frappe.get_doc({
+                    "doctype": "Role",
+                    "role_name": "Basic User",
+                    "desk_access": 1
+                }).insert(ignore_permissions=True)
+                frappe.db.commit()
+                user.add_roles("Basic User")
+            else:
+                user.add_roles("Basic User")
+            assigned_roles.append("Basic User")
+        
+        user.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        # ==================== SETUP DEFAULTS ====================
+        setup_results = {
+            "defaults": False,
+            "customer": False,
+            "user_permissions": False
+        }
+        
+        try:
+            # Set default company, cost center, warehouse
+            set_defaults_for_user(email)
+            setup_results["defaults"] = True
+        except Exception as e:
+            frappe.log_error(f"Failed to set defaults for {email}: {str(e)}", "Signup Defaults Error")
+        
+        try:
+            # Ensure default customer exists
+            ensure_default_customer_for_user(email)
+            setup_results["customer"] = True
+        except Exception as e:
+            frappe.log_error(f"Failed to create customer for {email}: {str(e)}", "Signup Customer Error")
+        
+        try:
+            # Set user permissions for key doctypes
+            assign_initial_permissions(email)
+            setup_results["user_permissions"] = True
+        except Exception as e:
+            frappe.log_error(f"Failed to set permissions for {email}: {str(e)}", "Signup Permissions Error")
+
+        # ==================== RESPONSE ====================
         create_response(
             status=200,
-            message=_("User registered successfully with admin-level permissions"),
+            message=_("User registered successfully"),
             data={
                 "user": {
                     "email": email,
                     "full_name": full_name,
                     "first_name": first_name,
                     "last_name": last_name,
-                    "pin": pin
+                    "pin": pin,
+                    "phone_number": phone_number,
+                    "roles": assigned_roles,
+                    "setup": setup_results
+                },
+                "next_steps": {
+                    "login_url": "/api/method/<your_app>.api.login",
+                    "verify_email": f"Please check {email} for verification email",
+                    "suggested_actions": [
+                        "Log in with your credentials",
+                        "Complete your profile",
+                        "Set up your preferences"
+                    ]
                 }
             }
         )
@@ -2054,10 +2152,117 @@ def create_user(email, password, first_name, last_name=None, full_name=None, pin
         frappe.log_error(frappe.get_traceback(), "Signup Error")
         create_response(
             status=400,
-            message=str(e)
+            message=str(e),
+            data={
+                "email": email,
+                "suggestion": "Please check all required fields and try again"
+            }
         )
         return
 
+
+def assign_initial_permissions(user_email):
+    """
+    Assign initial user permissions for key doctypes
+    """
+    try:
+        # Get default company
+        default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+        if not default_company:
+            return
+        
+        # Get main cost center
+        main_cost_center = frappe.db.get_value(
+            "Cost Center",
+            {"company": default_company, "cost_center_name": ["like", "Main%"]},
+            "name"
+        )
+        
+        # Get main warehouse
+        main_warehouse = frappe.db.get_value(
+            "Warehouse",
+            {"company": default_company, "warehouse_name": ["like", "Stores%"]},
+            "name"
+        )
+        
+        # Assign permissions
+        permissions = [
+            ("Company", default_company),
+            ("Cost Center", main_cost_center) if main_cost_center else None,
+            ("Warehouse", main_warehouse) if main_warehouse else None
+        ]
+        
+        for doctype, value in permissions:
+            if value and not frappe.db.exists("User Permission", {
+                "user": user_email,
+                "allow": doctype,
+                "for_value": value
+            }):
+                frappe.get_doc({
+                    "doctype": "User Permission",
+                    "user": user_email,
+                    "allow": doctype,
+                    "for_value": value,
+                    "apply_to_all_doctypes": 1,
+                    "is_default": 1
+                }).insert(ignore_permissions=True)
+        
+        frappe.db.commit()
+        
+    except Exception as e:
+        frappe.log_error(f"Error assigning permissions: {str(e)}", "Permission Assignment Error")
+        raise
+
+
+# Helper function to validate PIN
+def validate_pin(pin):
+    """Validate PIN format"""
+    if not pin:
+        return False
+    if not pin.isdigit():
+        return False
+    if len(pin) < 4 or len(pin) > 6:
+        return False
+    return True
+
+
+# Optional: Add endpoint to resend verification email
+@frappe.whitelist(allow_guest=True)
+def resend_verification_email(email):
+    """
+    Resend verification email to user
+    """
+    try:
+        if not frappe.db.exists("User", email):
+            frappe.throw(_("User not found"))
+        
+        user = frappe.get_doc("User", email)
+        
+        if user.enabled:
+            frappe.throw(_("User is already enabled"))
+        
+        # Send verification email
+        frappe.sendmail(
+            recipients=[email],
+            subject=_("Account Verification"),
+            template="verify_account",
+            args={
+                "user": user,
+                "verification_url": f"/api/method/<your_app>.api.verify_email?email={email}"
+            }
+        )
+        
+        create_response(
+            status=200,
+            message=_("Verification email sent successfully")
+        )
+        
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Resend Verification Error")
+        create_response(
+            status=400,
+            message=str(e)
+        )
 
 def ensure_default_customer_for_user(user):
     """
@@ -2846,6 +3051,306 @@ def add_user_rights_profile():
         except Exception as e:
             frappe.log_error(f"Error adding user_rights_profile field: {str(e)}", "Patch Error")
 
+@frappe.whitelist()
+def get_products():
+    try:
+        data = frappe.local.form_dict
+
+        # Pagination
+        page = int(data.get("page", 1))
+        limit = int(data.get("limit", 1000))
+        if page < 1:
+            page = 1
+        start = (page - 1) * limit
+
+        item_group = data.get("item_group")
+
+        filters = {"disabled": 0}
+
+        user = frappe.session.user
+        user_doc = frappe.get_doc("User", user)
+
+        # --------------------------------------------------------
+        # USER PERMISSIONS FOR ITEM GROUPS
+        # --------------------------------------------------------
+        allowed_item_groups = None
+
+        if user_doc.user_rights_profile:
+            profile = frappe.get_doc("User Rights Profile", user_doc.user_rights_profile)
+
+            if profile.is_item_group_related:
+                allowed_item_groups = frappe.get_all(
+                    "User Permission",
+                    filters={
+                        "user": user_doc.name,
+                        "allow": "Item Group"
+                    },
+                    fields=["for_value"]
+                )
+
+                allowed_item_groups = [g.for_value for g in allowed_item_groups]
+
+                if not allowed_item_groups:
+                    create_response("200", {
+                        "products": [],
+                        "pagination": {
+                            "current_page": page,
+                            "limit": limit,
+                            "total_count": 0,
+                            "total_pages": 0,
+                            "has_next_page": False,
+                            "has_prev_page": False,
+                            "next_page": None,
+                            "prev_page": None
+                        }
+                    })
+                    return
+
+                filters["item_group"] = ["in", allowed_item_groups]
+
+        # --------------------------------------------------------
+        # Optional API item_group filter
+        # --------------------------------------------------------
+        if item_group:
+            if isinstance(item_group, list):
+                if allowed_item_groups is not None:
+                    intersection = list(set(item_group) & set(allowed_item_groups or []))
+                    if not intersection:
+                        create_response("200", {"products": [], "pagination": {}})
+                        return
+                    filters["item_group"] = ["in", intersection]
+                else:
+                    filters["item_group"] = ["in", item_group]
+            else:
+                if allowed_item_groups is not None and item_group not in allowed_item_groups:
+                    create_response("200", {"products": [], "pagination": {}})
+                    return
+                filters["item_group"] = item_group
+
+        # --------------------------------------------------------
+        # Dynamic Item Fields (safe for missing columns)
+        # --------------------------------------------------------
+        item_fields = [
+            "name",
+            "item_name",
+            "item_code",
+            "item_group",
+            "is_stock_item",
+            "custom_simple_code",
+            "is_sales_item",
+            "stock_uom"
+        ]
+
+        has_food_tourism = frappe.db.has_column("Item", "custom_food_and_tourism_tax")
+        has_food_tax = frappe.db.has_column("Item", "custom_food_tax")
+        has_tourism_tax = frappe.db.has_column("Item", "custom_tourism_tax")
+        cummulative = frappe.db.has_column("Item", "custom_cummulative")
+        has_order_item_1 = frappe.db.has_column("Item", "custom_is_order_item_1")
+        has_order_item_2 = frappe.db.has_column("Item", "custom_is_order_item_2")
+        has_order_item_3 = frappe.db.has_column("Item", "custom_is_order_item_3")
+        has_order_item_4 = frappe.db.has_column("Item", "custom_is_order_item_4")
+        has_order_item_5 = frappe.db.has_column("Item", "custom_is_order_item_5")
+        has_order_item_6 = frappe.db.has_column("Item", "custom_is_order_item_6")
+
+        if has_food_tourism:
+            item_fields.append("custom_food_and_tourism_tax")
+        if has_food_tax:
+            item_fields.append("custom_food_tax")
+        if has_tourism_tax:
+            item_fields.append("custom_tourism_tax")
+        if cummulative:
+            item_fields.append("custom_cummulative")
+        if has_order_item_1:
+            item_fields.append("custom_is_order_item_1")
+        if has_order_item_2:
+            item_fields.append("custom_is_order_item_2")
+        if has_order_item_3:
+            item_fields.append("custom_is_order_item_3")
+        if has_order_item_4:
+            item_fields.append("custom_is_order_item_4")
+        if has_order_item_5:
+            item_fields.append("custom_is_order_item_5")
+        if has_order_item_6:
+            item_fields.append("custom_is_order_item_6")
+
+        # --------------------------------------------------------
+        # Count
+        # --------------------------------------------------------
+        total_count = frappe.db.count("Item", filters=filters)
+
+        # --------------------------------------------------------
+        # Fetch Items
+        # --------------------------------------------------------
+        product_details = frappe.get_all(
+            "Item",
+            filters=filters,
+            fields=item_fields,
+            start=start,
+            limit=limit,
+            order_by="item_code"
+        )
+
+        # --------------------------------------------------------
+        # UOM Conversions
+        # --------------------------------------------------------
+        uom_data = frappe.get_all(
+            "UOM Conversion Detail",
+            fields=["parent", "uom", "conversion_factor"]
+        )
+
+        uom_map = {}
+        for u in uom_data:
+            uom_map.setdefault(u["parent"], []).append({
+                "uom": u["uom"],
+                "conversion_factor": u["conversion_factor"]
+            })
+
+        # --------------------------------------------------------
+        # Warehouses
+        # --------------------------------------------------------
+        bin_data = frappe.get_all(
+            "Bin",
+            fields=["item_code", "warehouse", "actual_qty"]
+        )
+
+        # --------------------------------------------------------
+        # Prices
+        # --------------------------------------------------------
+        price_lists = frappe.get_all(
+            "Item Price",
+            fields=[
+                "price_list",
+                "price_list_rate",
+                "item_code",
+                "selling",
+                "uom",
+                "buying"
+            ]
+        )
+
+        products = {
+            p["item_code"]: {
+                "warehouses": [],
+                "prices": [],
+                "taxes": []
+            }
+            for p in product_details
+        }
+
+        # Warehouses
+        for b in bin_data:
+            if b["item_code"] in products:
+                products[b["item_code"]]["warehouses"].append({
+                    "warehouse": b["warehouse"],
+                    "qtyOnHand": b["actual_qty"]
+                })
+
+        for item_code, pdata in products.items():
+            if not pdata["warehouses"]:
+                pdata["warehouses"].append({
+                    "warehouse": get_default_warehouse_for_user(),
+                    "qtyOnHand": 0
+                })
+
+        # Prices
+        for p in price_lists:
+            if p["item_code"] in products:
+                products[p["item_code"]]["prices"].append({
+                    "priceName": p["price_list"],
+                    "price": p["price_list_rate"],
+                    "uom": p["uom"] or "nos",
+                    "type": "selling" if p["selling"] else "buying"
+                })
+
+        # Taxes
+        for p in product_details:
+            item_code = p["item_code"]
+            try:
+                doc = frappe.get_doc("Item", item_code)
+                for tax in getattr(doc, "taxes", []):
+                    products[item_code]["taxes"].append({
+                        "item_tax_template": tax.item_tax_template,
+                        "tax_category": tax.tax_category,
+                        "valid_from": tax.valid_from,
+                        "minimum_net_rate": tax.minimum_net_rate,
+                        "maximum_net_rate": tax.maximum_net_rate
+                    })
+            except Exception:
+                pass
+
+        # --------------------------------------------------------
+        # Final Response
+        # --------------------------------------------------------
+        final_products = []
+
+        for p in product_details:
+            item_code = p["item_code"]
+
+            product = {
+                "itemcode": item_code,
+                "itemname": p["item_name"],
+                "groupname": p["item_group"],
+                "maintainstock": p["is_stock_item"],
+                "warehouses": products[item_code]["warehouses"],
+                "default warehouse": get_default_warehouse_for_user(),
+                "prices": products[item_code]["prices"],
+                "taxes": products[item_code]["taxes"],
+                "simple_code": p["custom_simple_code"],
+                "is_sales_item": p["is_sales_item"],
+                "test":"nothing",
+                "uom": {
+                    "stock_uom": p["stock_uom"],
+                    "conversions": uom_map.get(item_code, [])
+                }
+            }
+
+            if has_food_tourism:
+                product["food_and_tourism_tax"] = p.get("custom_food_and_tourism_tax")
+
+            if has_food_tax:
+                product["food_tax"] = p.get("custom_food_tax")
+
+            if has_tourism_tax:
+                product["tourism_tax"] = p.get("custom_tourism_tax")
+            if cummulative:
+                product["cumulative"] = p.get("custom_cummulative")
+            if has_order_item_1:
+                product["custom_is_order_item_1"] = p.get("custom_is_order_item_1")
+            if has_order_item_2:
+                product["custom_is_order_item_2"] = p.get("custom_is_order_item_2")
+            if has_order_item_3:
+                product["custom_is_order_item_3"] = p.get("custom_is_order_item_3")
+            if has_order_item_4:
+                product["custom_is_order_item_4"] = p.get("custom_is_order_item_4")
+            if has_order_item_5:
+                product["custom_is_order_item_5"] = p.get("custom_is_order_item_5")
+            if has_order_item_6:
+                product["custom_is_order_item_6"] = p.get("custom_is_order_item_6")
+            
+
+            final_products.append(product)
+
+        total_pages = (total_count + limit - 1) // limit
+
+        pagination = {
+            "current_page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next_page": page < total_pages,
+            "has_prev_page": page > 1,
+            "next_page": page + 1 if page < total_pages else None,
+            "prev_page": page - 1 if page > 1 else None
+        }
+
+        create_response("200", {
+            "products": final_products,
+            "pagination": pagination
+        })
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(str(e), "Error fetching products")
 
 @frappe.whitelist(allow_guest=True)
 def get_products_saas():
