@@ -1850,8 +1850,9 @@ def get_users():
             "User",
             filters={"name": ["in", user_names]},
             fields=[
-                "name", "email", "full_name", "first_name", "last_name", 
-                "enabled", "user_type", "pin", "role_select"
+                "name", "email", "full_name", "first_name", "last_name",
+                "enabled", "user_type", "pin", "role_select",
+                "user_rights_profile"
             ]
         )
 
@@ -4641,5 +4642,215 @@ def get_modes_of_payment():
         create_response("200", {"data": result})
 
     except Exception as e:
+        create_response("417", {"error": str(e)})
+
+
+# =============================================================================
+# Doctor / Dosage — WRITE endpoints (Pharmacy master data push from POS)
+# =============================================================================
+
+def _form_data():
+    """Merge JSON request body (if any) with form_dict so both shapes work."""
+    data = dict(frappe.local.form_dict or {})
+    try:
+        raw = frappe.request.get_data(as_text=True) if frappe.request else ""
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    if k not in data:
+                        data[k] = v
+    except Exception:
+        pass
+    return data
+
+
+def _s(v):
+    """Return trimmed string or None."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+@frappe.whitelist()
+def create_doctor():
+    """Create a Doctor master record.
+
+    Body / form params:
+        full_name      (required)
+        practice_no    (optional)
+        qualification  (optional)
+        school         (optional)
+        phone          (optional)
+
+    Response shape (200):
+        {"name": <doc name>, "full_name": ..., "practice_no": ...,
+         "qualification": ..., "school": ..., "phone": ...}
+    """
+    try:
+        if not frappe.db.table_exists("Doctor"):
+            return create_response("417", {"error": "Doctor doctype not migrated yet"})
+
+        data = _form_data()
+        full_name = _s(data.get("full_name"))
+        if not full_name:
+            return create_response("417", {"error": "full_name is required"})
+
+        doc = frappe.new_doc("Doctor")
+        doc.full_name     = full_name
+        doc.practice_no   = _s(data.get("practice_no"))
+        doc.qualification = _s(data.get("qualification"))
+        doc.school        = _s(data.get("school"))
+        doc.phone         = _s(data.get("phone"))
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        create_response("200", {
+            "name":          doc.name,
+            "full_name":     doc.full_name,
+            "practice_no":   doc.practice_no,
+            "qualification": doc.qualification,
+            "school":        doc.school,
+            "phone":         doc.phone,
+        })
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error creating doctor")
+        create_response("417", {"error": str(e)})
+
+
+@frappe.whitelist()
+def update_doctor():
+    """Update an existing Doctor master record.
+
+    Body / form params:
+        name           (required — Doctor doc name == full_name)
+        full_name      (optional — new full name if changed)
+        practice_no    (optional)
+        qualification  (optional)
+        school         (optional)
+        phone          (optional)
+
+    Response shape (200):
+        {"name": ..., "full_name": ..., "practice_no": ...,
+         "qualification": ..., "school": ..., "phone": ...}
+    """
+    try:
+        if not frappe.db.table_exists("Doctor"):
+            return create_response("417", {"error": "Doctor doctype not migrated yet"})
+
+        data = _form_data()
+        name = _s(data.get("name"))
+        if not name:
+            return create_response("417", {"error": "name is required"})
+
+        try:
+            doc = frappe.get_doc("Doctor", name)
+        except frappe.DoesNotExistError:
+            return create_response("417", {"error": f"Doctor '{name}' does not exist"})
+        except Exception as e:
+            return create_response("417", {"error": f"Could not load Doctor '{name}': {e}"})
+
+        # Apply only fields that were provided
+        for fld in ("full_name", "practice_no", "qualification", "school", "phone"):
+            if fld in data:
+                setattr(doc, fld, _s(data.get(fld)))
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        create_response("200", {
+            "name":          doc.name,
+            "full_name":     doc.full_name,
+            "practice_no":   doc.practice_no,
+            "qualification": doc.qualification,
+            "school":        doc.school,
+            "phone":         doc.phone,
+        })
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error updating doctor")
+        create_response("417", {"error": str(e)})
+
+
+@frappe.whitelist()
+def create_dosage():
+    """Create a Dosage master record.
+
+    Body / form params:
+        code         (required, unique)
+        description  (optional)
+
+    Response shape (200):
+        {"name": <doc name>, "code": ..., "description": ...}
+    """
+    try:
+        if not frappe.db.table_exists("Dosage"):
+            return create_response("417", {"error": "Dosage doctype not migrated yet"})
+
+        data = _form_data()
+        code = _s(data.get("code"))
+        if not code:
+            return create_response("417", {"error": "code is required"})
+
+        doc = frappe.new_doc("Dosage")
+        doc.code        = code
+        doc.description = _s(data.get("description"))
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        create_response("200", {
+            "name":        doc.name,
+            "code":        doc.code,
+            "description": doc.description,
+        })
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error creating dosage")
+        create_response("417", {"error": str(e)})
+
+
+@frappe.whitelist()
+def update_dosage():
+    """Update an existing Dosage master record.
+
+    Body / form params:
+        name         (required — Dosage doc name)
+        code         (optional)
+        description  (optional)
+
+    Response shape (200):
+        {"name": ..., "code": ..., "description": ...}
+    """
+    try:
+        if not frappe.db.table_exists("Dosage"):
+            return create_response("417", {"error": "Dosage doctype not migrated yet"})
+
+        data = _form_data()
+        name = _s(data.get("name"))
+        if not name:
+            return create_response("417", {"error": "name is required"})
+
+        try:
+            doc = frappe.get_doc("Dosage", name)
+        except frappe.DoesNotExistError:
+            return create_response("417", {"error": f"Dosage '{name}' does not exist"})
+        except Exception as e:
+            return create_response("417", {"error": f"Could not load Dosage '{name}': {e}"})
+
+        for fld in ("code", "description"):
+            if fld in data:
+                setattr(doc, fld, _s(data.get(fld)))
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        create_response("200", {
+            "name":        doc.name,
+            "code":        doc.code,
+            "description": doc.description,
+        })
+
+    except Exception as e:
+        frappe.log_error(str(e), "Error updating dosage")
         create_response("417", {"error": str(e)})
         frappe.log_error(str(e), "Error fetching modes of payment")
