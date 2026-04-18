@@ -3150,6 +3150,7 @@ def get_products():
         has_order_item_4 = frappe.db.has_column("Item", "custom_is_order_item_4")
         has_order_item_5 = frappe.db.has_column("Item", "custom_is_order_item_5")
         has_order_item_6 = frappe.db.has_column("Item", "custom_is_order_item_6")
+        has_is_pharmacy_product = frappe.db.has_column("Item", "custom_is_pharmacy_product")
 
         if has_food_tourism:
             item_fields.append("custom_food_and_tourism_tax")
@@ -3171,6 +3172,8 @@ def get_products():
             item_fields.append("custom_is_order_item_5")
         if has_order_item_6:
             item_fields.append("custom_is_order_item_6")
+        if has_is_pharmacy_product:
+            item_fields.append("custom_is_pharmacy_product")
 
         # --------------------------------------------------------
         # Count
@@ -3226,6 +3229,41 @@ def get_products():
                 "buying"
             ]
         )
+
+        # --------------------------------------------------------
+        # Batches (pharmacy / expiry tracking) - guarded
+        # --------------------------------------------------------
+        batches_by_item = {}
+        try:
+            if frappe.db.table_exists("Batch"):
+                item_codes = [p["item_code"] for p in product_details]
+                if item_codes:
+                    batch_filters = {
+                        "item": ["in", item_codes],
+                        "disabled": 0,
+                    }
+                    batch_fields = ["name", "batch_id", "item", "expiry_date"]
+                    if frappe.db.has_column("Batch", "batch_qty"):
+                        batch_fields.append("batch_qty")
+                    batch_rows = frappe.db.get_all(
+                        "Batch",
+                        filters=batch_filters,
+                        or_filters=[
+                            ["expiry_date", "is", "not set"],
+                            ["expiry_date", ">=", today()],
+                        ],
+                        fields=batch_fields,
+                        limit_page_length=0,
+                    )
+                    for b in batch_rows:
+                        batches_by_item.setdefault(b["item"], []).append({
+                            "batch_no": b.get("batch_id") or b.get("name"),
+                            "expiry_date": b.get("expiry_date"),
+                            "qty": flt(b.get("batch_qty") or 0),
+                        })
+        except Exception:
+            # Never let batch fetch break the products endpoint
+            batches_by_item = {}
 
         products = {
             p["item_code"]: {
@@ -3325,7 +3363,13 @@ def get_products():
                 product["custom_is_order_item_5"] = p.get("custom_is_order_item_5")
             if has_order_item_6:
                 product["custom_is_order_item_6"] = p.get("custom_is_order_item_6")
-            
+
+            if has_is_pharmacy_product:
+                product["is_pharmacy_product"] = bool(p.get("custom_is_pharmacy_product") or 0)
+            else:
+                product["is_pharmacy_product"] = False
+
+            product["batches"] = batches_by_item.get(item_code, [])
 
             final_products.append(product)
 
@@ -4409,3 +4453,135 @@ def get_item_profitability():
     except Exception as e:
         frappe.log_error(str(e), "Error getting item profitability")
         return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist()
+def get_doctors():
+    """Return paginated list of Doctor records.
+
+    Query params:
+        page (int, default 1)
+        limit (int, default 1000)
+    """
+    try:
+        data = frappe.local.form_dict
+
+        page = int(data.get("page", 1))
+        limit = int(data.get("limit", 1000))
+        if page < 1:
+            page = 1
+        start = (page - 1) * limit
+
+        if not frappe.db.table_exists("Doctor"):
+            create_response("200", {
+                "doctors": [],
+                "pagination": {
+                    "current_page": page,
+                    "limit": limit,
+                    "total_count": 0,
+                    "total_pages": 0,
+                    "has_next_page": False,
+                    "has_prev_page": False,
+                    "next_page": None,
+                    "prev_page": None
+                }
+            })
+            return
+
+        total_count = frappe.db.count("Doctor")
+
+        doctors = frappe.db.get_all(
+            "Doctor",
+            fields=["name", "full_name", "practice_no", "qualification", "school", "phone"],
+            limit_page_length=limit,
+            limit_start=start,
+            order_by="full_name asc"
+        )
+
+        total_pages = (total_count + limit - 1) // limit if limit else 0
+
+        pagination = {
+            "current_page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next_page": page < total_pages,
+            "has_prev_page": page > 1,
+            "next_page": page + 1 if page < total_pages else None,
+            "prev_page": page - 1 if page > 1 else None
+        }
+
+        create_response("200", {
+            "doctors": doctors,
+            "pagination": pagination
+        })
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(str(e), "Error fetching doctors")
+
+
+@frappe.whitelist()
+def get_dosages():
+    """Return paginated list of Dosage records.
+
+    Query params:
+        page (int, default 1)
+        limit (int, default 1000)
+    """
+    try:
+        data = frappe.local.form_dict
+
+        page = int(data.get("page", 1))
+        limit = int(data.get("limit", 1000))
+        if page < 1:
+            page = 1
+        start = (page - 1) * limit
+
+        if not frappe.db.table_exists("Dosage"):
+            create_response("200", {
+                "dosages": [],
+                "pagination": {
+                    "current_page": page,
+                    "limit": limit,
+                    "total_count": 0,
+                    "total_pages": 0,
+                    "has_next_page": False,
+                    "has_prev_page": False,
+                    "next_page": None,
+                    "prev_page": None
+                }
+            })
+            return
+
+        total_count = frappe.db.count("Dosage")
+
+        dosages = frappe.db.get_all(
+            "Dosage",
+            fields=["name", "code", "description"],
+            limit_page_length=limit,
+            limit_start=start,
+            order_by="code asc"
+        )
+
+        total_pages = (total_count + limit - 1) // limit if limit else 0
+
+        pagination = {
+            "current_page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next_page": page < total_pages,
+            "has_prev_page": page > 1,
+            "next_page": page + 1 if page < total_pages else None,
+            "prev_page": page - 1 if page > 1 else None
+        }
+
+        create_response("200", {
+            "dosages": dosages,
+            "pagination": pagination
+        })
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(str(e), "Error fetching dosages")

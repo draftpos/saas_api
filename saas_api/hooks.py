@@ -312,7 +312,9 @@ fixtures = [
                 "custom_warehouse",
                 "custom_sync_reference",
                 "custom_sync_reference",
-                "custom_food_and_tourism_tax"
+                "custom_food_and_tourism_tax",
+                "custom_is_pharmacy_product",
+                "custom_doctor"
             ]]
         ]
     },
