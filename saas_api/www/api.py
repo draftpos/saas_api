@@ -4585,3 +4585,61 @@ def get_dosages():
     except Exception as e:
         create_response("417", {"error": str(e)})
         frappe.log_error(str(e), "Error fetching dosages")
+
+
+@frappe.whitelist()
+def get_modes_of_payment():
+    """Return enabled Modes of Payment with the account row for the requested
+    company (falls back to the first account row if the company doesn't match).
+
+    Bypasses doctype-level read permissions so non-admin roles (Pharmacist,
+    Cashier, etc.) can still refresh their local MOP cache at login.
+
+    Query params:
+        company (str, optional) — filter the accounts child rows to this company
+    """
+    try:
+        company = (frappe.local.form_dict.get("company") or "").strip()
+
+        mops = frappe.db.get_all(
+            "Mode of Payment",
+            fields=["name", "type", "enabled"],
+            filters={"enabled": 1},
+            order_by="name asc"
+        )
+
+        result = []
+        for mop in mops:
+            accounts = frappe.db.get_all(
+                "Mode of Payment Account",
+                fields=["parent", "company", "default_account"],
+                filters={"parent": mop["name"]},
+            )
+            acct = None
+            if company:
+                acct = next((a for a in accounts if a.get("company") == company), None)
+            if not acct and accounts:
+                acct = accounts[0]
+
+            entry = {
+                "name": mop["name"],
+                "type": mop.get("type") or "Cash",
+                "company": (acct or {}).get("company") or company,
+                "default_account": (acct or {}).get("default_account") or "",
+                "account_currency": "USD",
+            }
+            if entry["default_account"]:
+                try:
+                    entry["account_currency"] = (
+                        frappe.db.get_value("Account", entry["default_account"], "account_currency")
+                        or "USD"
+                    )
+                except Exception:
+                    pass
+            result.append(entry)
+
+        create_response("200", {"data": result})
+
+    except Exception as e:
+        create_response("417", {"error": str(e)})
+        frappe.log_error(str(e), "Error fetching modes of payment")
