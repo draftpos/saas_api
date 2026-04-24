@@ -521,11 +521,19 @@ def create_quotation(customer, items,reference_number,cost_center):
         doc.cost_center=cost_center
 
         for it in items:
+            # Pharmacy fields are custom fields on Quotation Item — see
+            # saas_api/fixtures/custom_field.json. They are optional; when
+            # the POS client doesn't send them (non-pharmacy items, older
+            # clients) the Check field defaults to 0 and the rest stay NULL.
             doc.append("items", {
-                "item_code": it["item_code"],
-                "qty": it.get("qty", 1),
-                "rate": it.get("rate", 0),
-                "uom": "Nos"
+                "item_code":          it["item_code"],
+                "qty":                it.get("qty", 1),
+                "rate":               it.get("rate", 0),
+                "uom":                it.get("uom") or "Nos",
+                "custom_is_pharmacy": 1 if it.get("custom_is_pharmacy") or it.get("is_pharmacy") else 0,
+                "custom_dosage":      it.get("custom_dosage")      or it.get("dosage")      or None,
+                "custom_batch_no":    it.get("custom_batch_no")    or it.get("batch_no")    or None,
+                "custom_expiry_date": it.get("custom_expiry_date") or it.get("expiry_date") or None,
             })
 
         doc.insert(ignore_permissions=True)
@@ -725,6 +733,10 @@ def get_quotations(limit=20, start=0, status=None):
         # -----------------------------
         # FETCH ITEMS FOR THIS QUOTATION
         # -----------------------------
+        # Pharmacy custom fields (custom_is_pharmacy / custom_dosage /
+        # custom_batch_no / custom_expiry_date) installed via the fixtures
+        # export. Included here so the POS client can render labels and
+        # print pharmacy slips without needing a separate round-trip.
         q["items"] = frappe.get_all(
             "Quotation Item",
             filters={"parent": q["name"]},
@@ -735,7 +747,11 @@ def get_quotations(limit=20, start=0, status=None):
                 "qty",
                 "rate",
                 "amount",
-                "uom"
+                "uom",
+                "custom_is_pharmacy",
+                "custom_dosage",
+                "custom_batch_no",
+                "custom_expiry_date",
             ],
             order_by="idx asc",
         )
@@ -846,6 +862,8 @@ def get_quotations_by_date(date, limit=20, start=0, status=None,cost_center=None
         # -----------------------------
         # FETCH ITEMS FOR THIS QUOTATION
         # -----------------------------
+        # Mirror the pharmacy-aware select in get_quotations so both
+        # endpoints return identical shapes to the POS client.
         q["items"] = frappe.get_all(
             "Quotation Item",
             filters={"parent": q["name"]},
@@ -857,11 +875,15 @@ def get_quotations_by_date(date, limit=20, start=0, status=None,cost_center=None
                 "rate",
                 "amount",
                 "uom",
+                "custom_is_pharmacy",
+                "custom_dosage",
+                "custom_batch_no",
+                "custom_expiry_date",
             ],
             order_by="idx asc",
         )
     return {"status": "success", "quotations": quotations}
-    
+
 @frappe.whitelist()
 def get_account():
     try:

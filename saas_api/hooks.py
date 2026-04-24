@@ -306,15 +306,25 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Customer", "Item Price","Purchase Invoice","Item"]],
+            ["dt", "in", [
+                "Customer", "Item Price", "Purchase Invoice", "Item",
+                # Quotation Item: pharmacy fields so POS-side pharmacist
+                # entries (dosage / batch / expiry) survive round-tripping
+                # through the server.
+                "Quotation Item"
+            ]],
             ["fieldname", "in", [
                 "custom_cost_center",
                 "custom_warehouse",
                 "custom_sync_reference",
-                "custom_sync_reference",
                 "custom_food_and_tourism_tax",
                 "custom_is_pharmacy_product",
-                "custom_doctor"
+                "custom_doctor",
+                # Quotation Item pharmacy fields
+                "custom_is_pharmacy",
+                "custom_dosage",
+                "custom_batch_no",
+                "custom_expiry_date",
             ]]
         ]
     },
