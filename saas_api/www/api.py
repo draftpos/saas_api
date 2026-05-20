@@ -3355,6 +3355,7 @@ def get_products():
                 "default warehouse": get_default_warehouse_for_user(),
                 "prices": products[item_code]["prices"],
                 "taxes": products[item_code]["taxes"],
+                "barcodes": products[item_code]["barcodes"] if "barcodes" in products[item_code] else [],
                 "simple_code": p["custom_simple_code"],
                 "is_sales_item": p["is_sales_item"],
                 "test":"nothing",
