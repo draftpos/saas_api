@@ -3337,7 +3337,7 @@ def get_products():
                     })
             except Exception:
                 pass
-        # Taxes
+        # Barcode
         for p in product_details:
             item_code = p["item_code"]
             try:
