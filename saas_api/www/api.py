@@ -3337,6 +3337,19 @@ def get_products():
                     })
             except Exception:
                 pass
+        # Taxes
+        for p in product_details:
+            item_code = p["item_code"]
+            try:
+                doc = frappe.get_doc("Item", item_code)
+                for barcode in getattr(doc, "barcodes", []):
+                    products[item_code]["barcodes"].append({
+                        "barcode": barcode.barcode,
+                        "barcode_type": barcode.barcode_type,
+                        "uom": barcode.uom
+                    })
+            except Exception:
+                pass
 
         # --------------------------------------------------------
         # Final Response
