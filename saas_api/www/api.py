@@ -3292,7 +3292,8 @@ def get_products():
             p["item_code"]: {
                 "warehouses": [],
                 "prices": [],
-                "taxes": []
+                "taxes": [],
+                "barcodes":[]
             }
             for p in product_details
         }
@@ -3342,7 +3343,7 @@ def get_products():
             item_code = p["item_code"]
             try:
                 doc = frappe.get_doc("Item", item_code)
-                for barcode in getattr(doc, "barcodes", []):
+                for barcode in getattr(doc, "Item Barcode", []):
                     products[item_code]["barcodes"].append({
                         "barcode": barcode.barcode,
                         "barcode_type": barcode.barcode_type,
