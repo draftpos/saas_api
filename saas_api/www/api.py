@@ -1097,6 +1097,12 @@ def login(usr, pwd, timezone):
             ignore_permissions=True
         )
 
+    user_permissions = frappe.get_all(
+        "User Permission",
+        filters={"user": user.name},
+        fields=["allow", "for_value"]
+    )
+
     frappe.response["user"] = {
         "first_name": escape_html(user.first_name or ""),
         "last_name": escape_html(user.last_name or ""),
@@ -1115,7 +1121,8 @@ def login(usr, pwd, timezone):
         "warehouse_items": warehouse_items,
         "time_zone": {"client": local_tz, "server": erpnext_tz},
         "role": user.get("role_select"),
-        "pin": user.get("pin")
+        "pin": user.get("pin"),
+        "user_permissions": user_permissions
     }
 
     frappe.response["token_string"] = token_string
