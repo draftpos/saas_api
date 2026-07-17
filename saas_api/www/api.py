@@ -1103,6 +1103,12 @@ def login(usr, pwd, timezone):
         fields=["allow", "for_value"]
     )
 
+    company_currency = None
+    if default_company:
+        company_currency = frappe.db.get_value("Company", default_company, "default_currency")
+    if not company_currency:
+        company_currency = frappe.defaults.get_global_default("default_currency") or "USD"
+
     frappe.response["user"] = {
         "first_name": escape_html(user.first_name or ""),
         "last_name": escape_html(user.last_name or ""),
@@ -1115,6 +1121,7 @@ def login(usr, pwd, timezone):
         "warehouse": default_warehouse,
         "cost_center": default_cost_center,
         "company":default_company,
+        "currency": company_currency,
         "default_customer": default_customer,
         "user_rights": user_rights_profile,
         "customers": customers,
