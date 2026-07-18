@@ -4909,3 +4909,140 @@ def update_dosage():
         frappe.log_error(str(e), "Error updating dosage")
         create_response("417", {"error": str(e)})
         frappe.log_error(str(e), "Error fetching modes of payment")
+
+# user_stock_report --------------------------------------------------------------
+@frappe.whitelist(allow_guest=True)
+def user_stock_report(company=None, from_date=None, to_date=None, warehouse=None):
+    """
+    Returns stock report for the given user - automatically determines company from user.
+    Accepts optional `warehouse` (name or comma-separated list) to filter results.
+    """
+    if not company:
+        frappe.throw("company is required")
+    
+    company = frappe.db.get_value("Company", company, "name")
+    filters = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "company": company,
+        "warehouse": warehouse
+    }
+
+    # Get stock data for the company
+    columns = _usr_get_columns()
+    data = _usr_get_data(filters, company)
+    
+    if data:
+        data = _usr_add_totals_row(data)
+
+    return {
+        "company": company,
+        "columns": columns, 
+        "data": data
+    }
+
+def _usr_get_columns():
+    return [
+        {"label": "Warehouse", "fieldname": "warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 250},
+        {"label": "Value At Selling", "fieldname": "selling_value", "fieldtype": "Currency", "width": 250},
+        {"label": "Value At Cost", "fieldname": "cost_value", "fieldtype": "Currency", "width": 250},
+        {"label": "Expected Profit", "fieldname": "expected_profit", "fieldtype": "Currency", "width": 250},
+        {"label": "Company", "fieldname": "company", "fieldtype": "Link", "options": "Company", "width": 250}
+    ]
+
+
+def _usr_get_data(filters, company):
+    # Filter stock ledger entries by company via warehouse
+    conditions = ""
+    values = {"company": company}
+
+    # Apply warehouse filter (supports single name or comma-separated list)
+    if filters.get("warehouse"):
+        w = filters.get("warehouse")
+        if isinstance(w, str) and ',' in w:
+            warehouses = tuple([x.strip() for x in w.split(',') if x.strip()])
+            conditions += " AND sle.warehouse IN %(warehouses)s"
+            values["warehouses"] = warehouses
+        else:
+            conditions += " AND sle.warehouse = %(warehouse)s"
+            values["warehouse"] = w
+
+    # Apply from_date only if provided
+    if filters.get("from_date"):
+        conditions += " AND sle.posting_date >= %(from_date)s"
+        values["from_date"] = filters["from_date"]
+
+    # Apply to_date only if provided
+    if filters.get("to_date"):
+        conditions += " AND sle.posting_date <= %(to_date)s"
+        values["to_date"] = filters["to_date"]
+
+    query = f"""
+        SELECT
+            sle.item_code,
+            sle.warehouse,
+            SUM(sle.actual_qty) AS qty
+        FROM `tabStock Ledger Entry` sle
+        WHERE sle.docstatus < 2
+          AND sle.is_cancelled = 0
+          AND sle.warehouse IN (
+              SELECT name FROM `tabWarehouse` WHERE company = %(company)s
+          )
+          {conditions}
+        GROUP BY sle.item_code, sle.warehouse
+        HAVING SUM(sle.actual_qty) != 0
+    """
+
+
+    sle_entries = frappe.db.sql(query, values, as_dict=True)
+
+    data = []
+
+    for row in sle_entries:
+        # Latest valuation rate
+        val_rate = frappe.db.get_value(
+            "Stock Ledger Entry",
+            {"item_code": row.item_code, "warehouse": row.warehouse, "is_cancelled": 0},
+            "valuation_rate",
+            order_by="posting_date desc, posting_time desc, creation desc"
+        ) or 0
+
+        # Selling rate
+        selling_rate = frappe.db.get_value(
+            "Item Price",
+            {
+                "item_code": row.item_code,
+                "selling": 1,
+                "price_list": frappe.db.get_single_value("Selling Settings", "selling_price_list")
+            },
+            "price_list_rate"
+        ) or frappe.db.get_value("Item", row.item_code, "standard_rate") or 0
+
+        data.append({
+            "warehouse": row.warehouse,
+            "selling_value": flt(row.qty) * flt(selling_rate),
+            "cost_value": flt(row.qty) * flt(val_rate),
+            "expected_profit": flt(row.qty) * flt(selling_rate) - flt(row.qty) * flt(val_rate),
+            "company": company
+        })
+
+    return data
+
+
+
+def _usr_add_totals_row(data):
+    total_selling_value = sum(flt(row.get("selling_value", 0)) for row in data)
+    total_cost_value = sum(flt(row.get("cost_value", 0)) for row in data)
+
+    totals_row = {
+        "warehouse": _("Total"),
+        "selling_value": total_selling_value,
+        "cost_value": total_cost_value,
+        "expected_profit": total_selling_value - total_cost_value,
+        "company": "",
+        "bold": 1
+    }
+
+    data.append(totals_row)
+    return data
+
