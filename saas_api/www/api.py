@@ -1536,21 +1536,25 @@ def get_sales_invoice_report():
     if cost_center:
         filters["cost_center"] = cost_center
 
-    # Fetch grand_total for invoices
+    # Fetch grand_total, total_taxes_and_charges, and discount_amount for invoices
     invoices = frappe.get_all(
         "Sales Invoice",
         filters=filters,
-        fields=["grand_total"]
+        fields=["grand_total", "total_taxes_and_charges", "discount_amount"]
     )
 
     total_count = len(invoices)
     total_amount = sum([flt(inv.get("grand_total") or 0) for inv in invoices])
+    total_tax = sum([flt(inv.get("total_taxes_and_charges") or 0) for inv in invoices])
+    total_discount = sum([flt(inv.get("discount_amount") or 0) for inv in invoices])
 
     return {
         "message": {
             "status": "success",
             "total_count": total_count,
-            "total_amount": total_amount
+            "total_amount": total_amount,
+            "total_tax": total_tax,
+            "total_discount": total_discount
         }
     }
 
