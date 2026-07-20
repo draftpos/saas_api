@@ -1548,13 +1548,66 @@ def get_sales_invoice_report():
     total_tax = sum([flt(inv.get("total_taxes_and_charges") or 0) for inv in invoices])
     total_discount = sum([flt(inv.get("discount_amount") or 0) for inv in invoices])
 
+    # Compute Income and Expenses from GL Entry dynamically
+    gl_where = ["company=%s"]
+    gl_values = [company]
+    if from_date and to_date:
+        gl_where.append("posting_date >= %s")
+        gl_where.append("posting_date <= %s")
+        gl_values.extend([from_date, to_date])
+    elif from_date:
+        gl_where.append("posting_date >= %s")
+        gl_values.append(from_date)
+    elif to_date:
+        gl_where.append("posting_date <= %s")
+        gl_values.append(to_date)
+
+    if cost_center:
+        gl_where.append("cost_center=%s")
+        gl_values.append(cost_center)
+
+    if user:
+        # Check if tabGL Entry has owner or if we need to filter by voucher creator
+        # Frappe standard doctypes all have 'owner' field.
+        gl_where.append("(owner=%s OR user=%s)") # user field in some cases, or owner
+        gl_values.extend([user, user])
+
+    where_clause = " AND ".join(gl_where)
+
+    # Total Income
+    income_total = frappe.db.sql(f"""
+        SELECT SUM(credit - debit) as total_income
+        FROM `tabGL Entry`
+        WHERE {where_clause} AND account IN (
+            SELECT name FROM `tabAccount` WHERE root_type='Income'
+        )
+    """, tuple(gl_values), as_dict=1)
+    
+    total_income = flt(income_total[0]["total_income"]) if income_total and income_total[0].get("total_income") else 0.0
+
+    # Total Expense
+    expense_total = frappe.db.sql(f"""
+        SELECT SUM(debit - credit) as total_expense
+        FROM `tabGL Entry`
+        WHERE {where_clause} AND account IN (
+            SELECT name FROM `tabAccount` WHERE root_type='Expense'
+        )
+    """, tuple(gl_values), as_dict=1)
+    
+    total_expense = flt(expense_total[0]["total_expense"]) if expense_total and expense_total[0].get("total_expense") else 0.0
+
+    gross_profit = total_income - total_expense
+
     return {
         "message": {
             "status": "success",
             "total_count": total_count,
             "total_amount": total_amount,
             "total_tax": total_tax,
-            "total_discount": total_discount
+            "total_discount": total_discount,
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "gross_profit": gross_profit
         }
     }
 
