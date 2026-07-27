@@ -244,6 +244,7 @@ app_license = "mit"
 after_install = [
     "saas_api.www.api.add_user_rights_profile",
     "saas_api.www.api.add_reference_number_to_sales_invoice",
+    "saas_api.www.api.add_hscode_to_item",
     # "saas_api.utils.create_default_user_rights",
     # "saas_api.user.assign_admin_profile"
 ]
@@ -325,6 +326,7 @@ fixtures = [
                 "custom_dosage",
                 "custom_batch_no",
                 "custom_expiry_date",
+                "custom_hscode",
             ]]
         ]
     },

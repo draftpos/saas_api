@@ -86,6 +86,12 @@ def create_item():
     try:
         data = json.loads(frappe.request.data or "{}")
 
+        # Ensure custom field exists in the DB
+        try:
+            add_hscode_to_item()
+        except Exception:
+            pass
+
         # -------------------------------------------------
         # Basic item fields
         # -------------------------------------------------
@@ -101,6 +107,7 @@ def create_item():
         is_stock_item = int(data.get("is_stock_item", 1))
         allow_sales = int(data.get("allow_sales", 1))
         is_sales_item = int(data.get("is_sales_item", 1))
+        custom_hscode = data.get("hscode") or data.get("custom_hscode")
 
         # -------------------------------------------------
         # Tax templates (LIST OF OBJECTS)
@@ -146,7 +153,7 @@ def create_item():
         # -------------------------------------------------
         # Create Item (NO opening stock → no Stock Entry)
         # -------------------------------------------------
-        item = frappe.get_doc({
+        item_dict = {
             "doctype": "Item",
             "item_code": item_code,
             "item_name": item_name,
@@ -159,7 +166,13 @@ def create_item():
             "custom_food_and_tourism_tax": custom_food_and_tourism_tax,
             "custom_food_tax": custom_food_tax,
             "custom_tourism_tax": custom_tourism_tax
-        })
+        }
+        
+        # Only assign custom_hscode if the column exists in the database
+        if frappe.db.has_column("Item", "custom_hscode"):
+            item_dict["custom_hscode"] = custom_hscode
+
+        item = frappe.get_doc(item_dict)
         item.is_sales_item = allow_sales
 
         # -------------------------------------------------
@@ -2717,12 +2730,37 @@ def add_reporting_category_to_accounts():
 
     return "Reporting Category field already exists"
 
+@frappe.whitelist()
+def add_hscode_to_item():
+    if not frappe.db.exists(
+        "Custom Field",
+        {"dt": "Item", "fieldname": "custom_hscode"}
+    ):
+        try:
+            frappe.get_doc({
+                "doctype": "Custom Field",
+                "dt": "Item",
+                "label": "HSCODE",
+                "fieldname": "custom_hscode",
+                "fieldtype": "Data",
+                "insert_after": "custom_simple_code",
+                "hidden": 0,
+                "reqd": 0
+            }).insert(ignore_permissions=True)
+            frappe.db.commit()
+            return "HSCODE field added successfully"
+        except Exception as e:
+            frappe.log_error(f"Error adding custom_hscode field: {str(e)}", "Patch Error")
+            return f"Error: {str(e)}"
+    return "HSCODE field already exists"
+
 def add_fields_on_install():
     add_fields_to_user_core_json()
     add_custom_fields_to_quotation()
     add_supplier_full_name_field()
     add_reference_number_to_sales_invoice()
     add_reporting_category_to_accounts()
+    add_hscode_to_item()
 
 @frappe.whitelist()
 def set_defaults_for_user(user_email):
@@ -3245,6 +3283,7 @@ def get_products():
         has_order_item_5 = frappe.db.has_column("Item", "custom_is_order_item_5")
         has_order_item_6 = frappe.db.has_column("Item", "custom_is_order_item_6")
         has_is_pharmacy_product = frappe.db.has_column("Item", "custom_is_pharmacy_product")
+        has_hscode = frappe.db.has_column("Item", "custom_hscode")
 
         if has_food_tourism:
             item_fields.append("custom_food_and_tourism_tax")
@@ -3268,6 +3307,8 @@ def get_products():
             item_fields.append("custom_is_order_item_6")
         if has_is_pharmacy_product:
             item_fields.append("custom_is_pharmacy_product")
+        if has_hscode:
+            item_fields.append("custom_hscode")
 
         # --------------------------------------------------------
         # Count
@@ -3478,6 +3519,9 @@ def get_products():
             else:
                 product["is_pharmacy_product"] = False
 
+            if has_hscode:
+                product["hscode"] = p.get("custom_hscode")
+
             product["batches"] = batches_by_item.get(item_code, [])
 
             final_products.append(product)
@@ -3531,16 +3575,23 @@ def get_products_saas():
         total_count = frappe.db.count("Item", filters=filters)
 
         # Get products
+        has_hscode = frappe.db.has_column("Item", "custom_hscode")
+        fields_to_get = [
+            "name",
+            "item_name",
+            "item_code",
+            "item_group",
+            "is_stock_item",
+            "is_sales_item",
+            "stock_uom"
+        ]
+        if has_hscode:
+            fields_to_get.append("custom_hscode")
+
         product_details = frappe.get_all(
             "Item",
             filters=filters,
-            fields=["name", 
-                    "item_name",
-                    "item_code",
-                    "item_group",
-                    "is_stock_item",
-                    "is_sales_item",
-                    "stock_uom"],
+            fields=fields_to_get,
             start=start,
             limit=limit,
             order_by="item_code"
@@ -3617,7 +3668,7 @@ def get_products_saas():
         final_products = []
         for p in product_details:
             item_code = p["item_code"]
-            final_products.append({
+            product_dict = {
                 "itemcode": item_code,
                 "itemname": p["item_name"],
                 "groupname": p["item_group"],
@@ -3629,7 +3680,10 @@ def get_products_saas():
                 "is_sales_item": p["is_sales_item"],
                 "uom": {"stock_uom": p["stock_uom"],
                 "conversions": uom_map.get(item_code, [])},
-            })
+            }
+            if has_hscode:
+                product_dict["hscode"] = p.get("custom_hscode")
+            final_products.append(product_dict)
 
         # Pagination meta
         total_pages = (total_count + limit - 1) // limit
