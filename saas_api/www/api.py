@@ -750,22 +750,24 @@ def get_quotations(limit=20, start=0, status=None):
         # custom_batch_no / custom_expiry_date) installed via the fixtures
         # export. Included here so the POS client can render labels and
         # print pharmacy slips without needing a separate round-trip.
+        # Check which custom fields exist in Quotation Item
+        quotation_item_fields = [
+            "item_code",
+            "item_name",
+            "description",
+            "qty",
+            "rate",
+            "amount",
+            "uom"
+        ]
+        for field in ["custom_is_pharmacy", "custom_dosage", "custom_batch_no", "custom_expiry_date"]:
+            if frappe.db.has_column("Quotation Item", field):
+                quotation_item_fields.append(field)
+
         q["items"] = frappe.get_all(
             "Quotation Item",
             filters={"parent": q["name"]},
-            fields=[
-                "item_code",
-                "item_name",
-                "description",
-                "qty",
-                "rate",
-                "amount",
-                "uom",
-                "custom_is_pharmacy",
-                "custom_dosage",
-                "custom_batch_no",
-                "custom_expiry_date",
-            ],
+            fields=quotation_item_fields,
             order_by="idx asc",
         )
 
@@ -877,22 +879,24 @@ def get_quotations_by_date(date, limit=20, start=0, status=None,cost_center=None
         # -----------------------------
         # Mirror the pharmacy-aware select in get_quotations so both
         # endpoints return identical shapes to the POS client.
+        # Check which custom fields exist in Quotation Item
+        quotation_item_fields = [
+            "item_code",
+            "item_name",
+            "description",
+            "qty",
+            "rate",
+            "amount",
+            "uom"
+        ]
+        for field in ["custom_is_pharmacy", "custom_dosage", "custom_batch_no", "custom_expiry_date"]:
+            if frappe.db.has_column("Quotation Item", field):
+                quotation_item_fields.append(field)
+
         q["items"] = frappe.get_all(
             "Quotation Item",
             filters={"parent": q["name"]},
-            fields=[
-                "item_code",
-                "item_name",
-                "description",
-                "qty",
-                "rate",
-                "amount",
-                "uom",
-                "custom_is_pharmacy",
-                "custom_dosage",
-                "custom_batch_no",
-                "custom_expiry_date",
-            ],
+            fields=quotation_item_fields,
             order_by="idx asc",
         )
     return {"status": "success", "quotations": quotations}
